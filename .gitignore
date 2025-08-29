@@ -1,0 +1,6 @@
+env/*
+highway-env/build
+*.so
+*.html
+**/__pycache__/
+*.sw*
