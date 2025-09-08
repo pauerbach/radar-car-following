@@ -160,7 +160,7 @@ class ContinousSteering(ActionType):
     The space intervals are always [-1, 1], but are mapped to throttle/steering intervals through configurations.
     """
 
-    ACCELERATION_RANGE = (-1, 1.0)
+    ACCELERATION_RANGE = (-1.0, 1.0)
     """Acceleration range: [-x, x], in m/s²."""
 
     def __init__(

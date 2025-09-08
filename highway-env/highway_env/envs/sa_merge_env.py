@@ -52,6 +52,7 @@ class SingleAgentMergeEnv(AbstractEnv):
                     "type": "ContinousSteering",
                     # "type": "DiscreteMetaAction",
                 },
+                "observation": {"type": "Radar"},
                 "duration": 15,  # time step
                 "policy_frequency": 5,  # [Hz]
                 "merging_speed_reward": -0.5,
@@ -156,6 +157,7 @@ class SingleAgentMergeEnv(AbstractEnv):
         """
 
         scenario, _ = CommonRoadFileReader("./track.xml").open()
+        # scenario, _ = CommonRoadFileReader("./track2.xml").open()
 
         net = scenario.lanelet_network
         net_common_road = RoadNetworkCommonRoad(net, is_ring=True)
@@ -203,7 +205,9 @@ class SingleAgentMergeEnv(AbstractEnv):
             initial_speed[1],
         )
 
-        # road.vehicles.append(veh)
+        veh.enable_lane_change = False
+
+        road.vehicles.append(veh)
 
 
 register(

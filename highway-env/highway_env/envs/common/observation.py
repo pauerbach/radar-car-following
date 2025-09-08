@@ -128,6 +128,49 @@ class TimeToCollisionObservation(ObservationType):
         return clamped_grid
 
 
+class RadarObservation(ObservationType):
+    def __init__(self, env: "AbstractEnv", **kwargs) -> None:
+        super().__init__(env, **kwargs)
+
+    def space(self) -> spaces.Space:
+        return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float32)
+
+    def observe(self):
+        vehicles = self.env.road.vehicles
+
+        veh = None
+        for v in vehicles:
+            if v.id == 1:
+                veh = v
+
+        leader = veh.to_dict(self.observer_vehicle)
+
+        # convert to coordinate system (rotation) of ego vehicle
+        ego = self.observer_vehicle.to_dict()
+        x = leader["x"] * np.cos(-ego["heading"]) - leader["y"] * np.sin(
+            -ego["heading"]
+        )
+        y = leader["x"] * np.sin(-ego["heading"]) + leader["y"] * np.cos(
+            -ego["heading"]
+        )
+
+        # calculate speed along ray
+        v = veh.velocity - self.observer_vehicle.velocity
+        direction = veh.position - self.observer_vehicle.position
+
+        speed = np.dot(v, direction / np.linalg.norm(direction))
+
+        # print(veh.velocity)
+        # print(veh.speed)
+        # print(self.observer_vehicle.velocity)
+        # print(self.observer_vehicle.speed)
+        # print(f"Calculated {speed}")
+        # print(f"Should {veh.speed - self.observer_vehicle.speed}")
+        # print("\n")
+
+        return np.array([x, y, speed])
+
+
 class KinematicObservation(ObservationType):
     """Observe the kinematics of nearby vehicles."""
 
@@ -604,41 +647,57 @@ class LidarObservation(ObservationType):
 
     def observe(self):
         # obs = self.trace(
-            # self.observer_vehicle.position, self.observer_vehicle.velocity
+        # self.observer_vehicle.position, self.observer_vehicle.velocity
         # ).copy()
         # if self.normalize:
-            # obs /= self.maximum_range
+        # obs /= self.maximum_range
         # return obs
 
-        self.grid = utils.trace(self.observer_vehicle.position, self.observer_vehicle.velocity, self.maximum_range, self.cells, self.angle, self.env.road.vehicles + self.env.road.objects, self.observer_vehicle)
+        self.grid = utils.trace(
+            self.observer_vehicle.position,
+            self.observer_vehicle.velocity,
+            self.maximum_range,
+            self.cells,
+            self.angle,
+            self.env.road.vehicles + self.env.road.objects,
+            self.observer_vehicle,
+        )
         self.origin = self.observer_vehicle.position.copy()
         obs = self.grid.copy()
         if self.normalize:
             # normalize distances
-            #obs[:, 0] /= self.maximum_range
-            obs[:, 0] /= (self.maximum_range / 30)
+            # obs[:, 0] /= self.maximum_range
+            obs[:, 0] /= self.maximum_range / 30
             # normalize velocities
-            obs[:, 1] = [utils.lmap(x, [-1.5 * MDPVehicle.SPEED_MAX, 1.5 * MDPVehicle.SPEED_MAX], [-1, 1] ) for x in obs[:,1]]
-
+            obs[:, 1] = [
+                utils.lmap(
+                    x,
+                    [-1.5 * MDPVehicle.SPEED_MAX, 1.5 * MDPVehicle.SPEED_MAX],
+                    [-1, 1],
+                )
+                for x in obs[:, 1]
+            ]
 
         # add the current position of the ego vehicle to the observation
         ego_obs = self.observer_vehicle.to_dict()
-        ego_pos = np.array([ego_obs["x"]-66, ego_obs["y"], ego_obs["vx"], ego_obs["vy"]])
+        ego_pos = np.array(
+            [ego_obs["x"] - 66, ego_obs["y"], ego_obs["vx"], ego_obs["vy"]]
+        )
 
         ego_pos[0] = utils.lmap(ego_pos[0], [-3, 2], [0, 310])
 
         # normalize ego_pos same as in KinematicObservation
-        #ego_pos[0] = utils.lmap(ego_pos[0], [-5.0 * MDPVehicle.SPEED_MAX, 5.0 * MDPVehicle.SPEED_MAX], [-1, 1])
-        #ego_pos[0] = utils.lmap(ego_pos[0], [-460, 460], [-1, 1])
-        #ego_pos[1] = utils.lmap(ego_pos[1], [-12, 12], [-1, 1])
-        #ego_pos[2] = utils.lmap(ego_pos[2], [-1.5 * MDPVehicle.SPEED_MAX, 1.5 * MDPVehicle.SPEED_MAX], [-1, 1])
-        #ego_pos[3] = utils.lmap(ego_pos[3], [-1.5 * MDPVehicle.SPEED_MAX, 1.5 * MDPVehicle.SPEED_MAX], [-1, 1])
+        # ego_pos[0] = utils.lmap(ego_pos[0], [-5.0 * MDPVehicle.SPEED_MAX, 5.0 * MDPVehicle.SPEED_MAX], [-1, 1])
+        # ego_pos[0] = utils.lmap(ego_pos[0], [-460, 460], [-1, 1])
+        # ego_pos[1] = utils.lmap(ego_pos[1], [-12, 12], [-1, 1])
+        # ego_pos[2] = utils.lmap(ego_pos[2], [-1.5 * MDPVehicle.SPEED_MAX, 1.5 * MDPVehicle.SPEED_MAX], [-1, 1])
+        # ego_pos[3] = utils.lmap(ego_pos[3], [-1.5 * MDPVehicle.SPEED_MAX, 1.5 * MDPVehicle.SPEED_MAX], [-1, 1])
 
         # special traetment for ego
         # replace x position with relative position to merge end
         # ego_pos[0] = (2.0 - self.observer_vehicle.position[0])  # adjusted for circular track
         # obs_list[0]["x"] = utils.lmap(obs_list[0]["x"], [0.9, 5], [-1, 1])
-        #ego_pos[0] = utils.lmap(ego_pos[0], [0.0, 5], [-1, 1])
+        # ego_pos[0] = utils.lmap(ego_pos[0], [0.0, 5], [-1, 1])
         ego_pos[0] = utils.lmap(ego_pos[0], [-460, 460], [-1, 1])
         # obs_list[0]["y"] = utils.lmap(obs_list[0]["y"], [0.0, 2.0], [-1, 1])
         ego_pos[1] = utils.lmap(ego_pos[1], [-0.43, 0.43], [-1, 1])
@@ -657,7 +716,7 @@ class LidarObservation(ObservationType):
         obs = {"lidar": obs, "ego": ego_pos}
 
         return obs
-   
+
     def trace(self, origin: np.ndarray, origin_velocity: np.ndarray) -> np.ndarray:
         self.origin = origin.copy()
         self.grid = np.ones((self.cells, 2)) * self.maximum_range
@@ -760,5 +819,7 @@ def observation_factory(env: "AbstractEnv", config: dict) -> ObservationType:
         return LidarObservation(env, **config)
     elif config["type"] == "MultiAgentObservation":
         return MultiAgentObservation(env, **config)
+    elif config["type"] == "Radar":
+        return RadarObservation(env, **config)
     else:
         raise ValueError("Unknown observation type")

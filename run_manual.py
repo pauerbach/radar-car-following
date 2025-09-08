@@ -10,11 +10,13 @@ env = gym.make("merge-single-agent-v0")
 
 env.reset()
 for _ in range(1000):
-    action = env.action_space.sample()
-    # action = 1.0
-    start = time.time()
-    env.step(action)
-    end = time.time()
-    # print(f"Took {end-start}s")
+    # action = env.action_space.sample()
+    action = 0.0
+    # start = time.time()
+    obs, reward, done, _, info = env.step(action)
+    print(obs)
+    # print(f"Took {time.time()-start} s")
+    if done:
+        env.reset()
     env.render()
     time.sleep(0.1)

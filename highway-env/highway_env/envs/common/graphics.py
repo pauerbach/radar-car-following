@@ -7,6 +7,7 @@ from gymnasium.spaces import Discrete
 
 from highway_env.envs.common.action import (
     ActionType,
+    ContinousSteering,
     DiscreteMetaAction,
     ContinuousAction,
 )
@@ -58,7 +59,7 @@ class EnvViewer(object):
         self.frame = 0
         self.directory = None
 
-        #self.selected_vehicle = self.env.road.vehicles[2]
+        # self.selected_vehicle = self.env.road.vehicles[2]
         self.selected_vehicle = None
 
     def set_agent_display(self, agent_display: Callable) -> None:
@@ -115,7 +116,7 @@ class EnvViewer(object):
                 self.env.paused = not self.env.paused
             elif event.type == pygame.MOUSEBUTTONUP:
                 pos = pygame.mouse.get_pos()
-                click_pos = self.sim_surface.pix2pos( pos[0], pos[1])
+                click_pos = self.sim_surface.pix2pos(pos[0], pos[1])
                 print(click_pos)
 
                 closest = None
@@ -131,7 +132,6 @@ class EnvViewer(object):
 
                 self.selected_vehicle = closest
 
-            
             self.sim_surface.handle_event(event)
             if self.env.action_type:
                 EventHandler.handle_event(self.env.action_type, event)
@@ -163,7 +163,9 @@ class EnvViewer(object):
         # visualize the surrounding vehicles of the selected vehicle
         if self.selected_vehicle is not None:
             RoadGraphics.mark_vehicles(self.sim_surface, self.selected_vehicle)
-            RoadGraphics.display_projected_vehicle(self.sim_surface, self.selected_vehicle, self.env.road)
+            RoadGraphics.display_projected_vehicle(
+                self.sim_surface, self.selected_vehicle, self.env.road
+            )
             RoadGraphics.display_information(self.sim_surface, self.selected_vehicle)
 
         if self.agent_display:
@@ -238,6 +240,8 @@ class EventHandler(object):
             cls.handle_discrete_action_event(action_type, event)
         elif isinstance(action_type, ContinuousAction):
             cls.handle_continuous_action_event(action_type, event)
+        elif isinstance(action_type, ContinousSteering):
+            cls.handle_continuous_steering_action_event(action_type, event)
 
     @classmethod
     def handle_discrete_action_event(
@@ -277,6 +281,23 @@ class EventHandler(object):
                 action[0] = 0
             if event.key == pygame.K_UP and action_type.longitudinal:
                 action[0] = 0
+        action_type.act(action)
+
+    @classmethod
+    def handle_continuous_steering_action_event(
+        cls, action_type: ContinuousAction, event: pygame.event.EventType
+    ) -> None:
+        action = action_type.last_action.copy()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_s:
+                action = -0.7
+            if event.key == pygame.K_w:
+                action = 0.7
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_s:
+                action = 0
+            if event.key == pygame.K_w:
+                action = 0
         action_type.act(action)
 
 
