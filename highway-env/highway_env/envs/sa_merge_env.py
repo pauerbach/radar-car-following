@@ -32,10 +32,12 @@ class SingleAgentMergeEnv(AbstractEnv):
                 },
                 "observation": {"type": "Radar"},
                 "duration": 50,  # time step
-                "policy_frequency": 5,  # [Hz]
+                "policy_frequency": 40,  # [Hz]
+                "simulation_frequency": 40,  # [Hz]
                 "scaling": 320.76,
                 "centering_position": [0.8, -0.6],
-                "termination_headway": 2.5,  # [m]
+                # "termination_headway": 2.5,  # [m]
+                "termination_headway": 4.5,  # [m]
                 "speed_reward_weight": 2.0,
                 "gap_reward_weight": 0.5,
                 "jerk_reward_weight": 0.004,
@@ -167,12 +169,6 @@ class SingleAgentMergeEnv(AbstractEnv):
         self.T = int(self.config["duration"] * self.config["policy_frequency"])
 
     def _make_road(self) -> None:
-        """
-        Make a road composed of a straight highway-env and a merging lane.
-
-        :return: the road
-        """
-
         # scenario, _ = CommonRoadFileReader("./track.xml").open()
         # scenario, _ = CommonRoadFileReader("./track2.xml").open()
         # scenario, _ = CommonRoadFileReader("./rectangle_track.xml").open()
@@ -186,10 +182,6 @@ class SingleAgentMergeEnv(AbstractEnv):
         self.road = RoadCommonRoad(network=net_common_road)
 
     def _make_vehicles(self, num_CAV=1, num_HDV=3) -> None:
-        """
-        Populate a road with several vehicles on the highway and on the merging lane, as well as an ego-vehicle.
-        """
-
         road = self.road
 
         ego_lane_index = 1

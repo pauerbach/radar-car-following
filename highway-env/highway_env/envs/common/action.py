@@ -311,7 +311,6 @@ class MultiAgentAction(ActionType):
 
 
 def action_factory(env: "AbstractEnv", config: dict) -> ActionType:
-    print(config["type"])
     if config["type"] == "ContinuousAction":
         return ContinuousAction(env, **config)
     elif config["type"] == "ContinousSteering":

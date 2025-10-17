@@ -684,7 +684,7 @@ class DefensiveVehicle(LinearVehicle):
 
 
 class RandomVehicle(ControlledVehicle):
-    SPEED_CHANGE_DELAY = 0.5
+    SPEED_CHANGE_DELAY = 0.06
 
     COMFORT_ACC_MAX = 0.4  # [m/s2]
     ACC_MAX = 1.0  # [m/s2]
@@ -710,14 +710,13 @@ class RandomVehicle(ControlledVehicle):
         self.theta = 0.5  # Speed of mean reversion
         self.mu = 0.5  # Long-term mean
         self.sigma = 0.15  # Volatility
-        # self.X0 = 0.5  # Initial value
         self.X0 = speed  # Initial value
 
         super().__init__(
             road, position, heading, speed, target_lane_index, target_speed, route
         )
 
-        self.last_speed = self.speed
+        self.last_speed = self.X0
 
     def act(self, action: Union[dict, str] = None):
         """
@@ -751,19 +750,19 @@ class RandomVehicle(ControlledVehicle):
 
         # if not utils.do_every(self.SPEED_CHANGE_DELAY, self.timer):
         #     return
-        self.timer = 0
+        # self.timer = 0
 
         # calculate new OU value for speed
+        # dW = np.sqrt(self.SPEED_CHANGE_DELAY) * np.random.normal(0, 1)
         dW = np.sqrt(dt) * np.random.normal(0, 1)
         self.speed = (
             self.last_speed
             + self.theta * (self.mu - self.last_speed) * dt
             + self.sigma * dW
         )
-        self.last_speed = self.speed
 
-        self.speed = np.random.uniform(low=0.1, high=1)
         self.speed = max(self.speed, 0.2)
+        self.last_speed = self.speed
 
     def acceleration(self):
         acceleration = self.COMFORT_ACC_MAX * (

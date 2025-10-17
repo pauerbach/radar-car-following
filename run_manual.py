@@ -19,4 +19,4 @@ for _ in range(1000):
     if done:
         env.reset()
     env.render()
-    time.sleep(0.1)
+    time.sleep(1 / env.config["policy_frequency"])
