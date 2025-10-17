@@ -710,7 +710,8 @@ class RandomVehicle(ControlledVehicle):
         self.theta = 0.5  # Speed of mean reversion
         self.mu = 0.5  # Long-term mean
         self.sigma = 0.15  # Volatility
-        self.X0 = 0.5  # Initial value
+        # self.X0 = 0.5  # Initial value
+        self.X0 = speed  # Initial value
 
         super().__init__(
             road, position, heading, speed, target_lane_index, target_speed, route
@@ -736,14 +737,8 @@ class RandomVehicle(ControlledVehicle):
         action["steering"] = utils.clip(
             action["steering"], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE
         )
-
-        # self.randomize_speed()
-        # action["acceleration"] = self.acceleration()
-        # action["acceleration"] = utils.clip(
-        # action["acceleration"], self.DEACC_MAX, self.ACC_MAX
-        # )
-
         action["acceleration"] = 0
+
         Vehicle.act(
             self, action
         )  # Skip ControlledVehicle.act(), or the command will be overriden.

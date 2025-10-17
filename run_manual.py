@@ -14,7 +14,7 @@ for _ in range(1000):
     action = 0.0
     # start = time.time()
     obs, reward, done, _, info = env.step(action)
-    print(obs)
+    # print(obs)
     # print(f"Took {time.time()-start} s")
     if done:
         env.reset()

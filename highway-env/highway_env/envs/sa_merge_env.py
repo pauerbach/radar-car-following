@@ -35,6 +35,7 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "policy_frequency": 5,  # [Hz]
                 "scaling": 320.76,
                 "centering_position": [0.8, -0.6],
+                "termination_headway": 2.5,  # [m]
                 "speed_reward_weight": 2.0,
                 "gap_reward_weight": 0.5,
                 "jerk_reward_weight": 0.004,
@@ -73,7 +74,7 @@ class SingleAgentMergeEnv(AbstractEnv):
         # Safety criterion
         d = self._compute_headway_distance(vehicle)
         delta_v = vehicle.speed - leader.speed
-        ttc = d / delta_v
+        ttc = d / max(delta_v, 1e-6)  # clipping to ensure no division by zero
 
         r_safe = 0
         if ttc > 0 and ttc < 1.5:
@@ -156,6 +157,8 @@ class SingleAgentMergeEnv(AbstractEnv):
         return (
             self.vehicle.crashed
             or self.steps >= self.config["duration"] * self.config["policy_frequency"]
+            or self._compute_headway_distance(self.vehicle)
+            > self.config["termination_headway"]
         )
 
     def _reset(self, num_CAV=1, num_HDV=6) -> None:
@@ -171,7 +174,9 @@ class SingleAgentMergeEnv(AbstractEnv):
         """
 
         # scenario, _ = CommonRoadFileReader("./track.xml").open()
-        scenario, _ = CommonRoadFileReader("./track2.xml").open()
+        # scenario, _ = CommonRoadFileReader("./track2.xml").open()
+        # scenario, _ = CommonRoadFileReader("./rectangle_track.xml").open()
+        scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
         # scenario, _ = CommonRoadFileReader("./track3.xml").open()
         # scenario, _ = CommonRoadFileReader("./track5.xml").open()
 
@@ -189,15 +194,13 @@ class SingleAgentMergeEnv(AbstractEnv):
 
         ego_lane_index = 1
         leader_lane_index = 1
-        start_pos_cav = 0.5
-        start_pos_hdv = 1.5
 
-        # initial speed with noise and location noise
-        initial_speed = (
-            np.random.rand(num_CAV + num_HDV) * 8 + 22
-        )  # range from [25, 30]
-        initial_speed /= 50  # scale to real model vehicles
-        initial_speed = list(initial_speed)
+        initial_pos = np.random.rand()
+
+        start_pos_cav = initial_pos
+        start_pos_hdv = (
+            initial_pos + RandomVehicle.LENGTH + np.random.rand() * 0.2
+        )  # initial bumper gap [0, 0.2] m
 
         """Spawn CAV"""
         lane = self.road.network.get_lane(ego_lane_index)
@@ -205,8 +208,7 @@ class SingleAgentMergeEnv(AbstractEnv):
             self.road,
             lane.position(start_pos_cav, 0),
             lane.heading_at(start_pos_cav),
-            # initial_speed[0],
-            0.5,
+            0.2,
         )
 
         self.vehicle = ego_vehicle
@@ -216,16 +218,12 @@ class SingleAgentMergeEnv(AbstractEnv):
 
         """Spawn HDV"""
         lane = self.road.network.get_lane(leader_lane_index)
-        # veh = ModelIDMVehicle(
         veh = RandomVehicle(
             self.road,
             lane.position(start_pos_hdv, 0),
             lane.heading_at(start_pos_hdv),
-            # initial_speed[1],
             0.5,
         )
-
-        veh.enable_lane_change = False
 
         road.vehicles.append(veh)
 

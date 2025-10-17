@@ -327,27 +327,13 @@ class AbstractEnv(gym.Env):
         for v in self.road.vehicles:
             if isinstance(v, RealVehicle):
                 continue
-            if (v.lane_index == vehicle.lane_index) and (
-                v.position[0] > vehicle.position[0]
-            ):
-                hd = v.position[0] - vehicle.position[0]
+            if vehicle.id == v.id:
+                continue
+            if v.lane_index == vehicle.lane_index:
+                hd = v.lane.distance_between_points(vehicle.position, v.position)
                 if hd < headway_distance:
                     headway_distance = hd
 
-            # also consider the vehicles on the next road segmentation connected to the current lane
-            if (
-                (vehicle.lane_index != ("b", "c", 1))
-                and (
-                    v.lane_index
-                    == self.road.network.next_lane(
-                        vehicle.lane_index, position=vehicle.position
-                    )
-                )
-                and (v.position[0] > vehicle.position[0])
-            ):
-                hd = v.position[0] - vehicle.position[0]
-                if hd < headway_distance:
-                    headway_distance = hd
         return headway_distance
 
     def __deepcopy__(self, memo):
