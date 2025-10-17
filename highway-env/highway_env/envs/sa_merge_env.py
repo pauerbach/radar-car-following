@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 from gymnasium.envs.registration import register
 
@@ -32,9 +33,14 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "observation": {"type": "Radar"},
                 "duration": 50,  # time step
                 "policy_frequency": 5,  # [Hz]
-                "collision_reward": 200,
                 "scaling": 320.76,
                 "centering_position": [0.8, -0.6],
+                "speed_reward_weight": 2.0,
+                "gap_reward_weight": 0.5,
+                "jerk_reward_weight": 0.004,
+                "minimum_gap": 2,
+                "desired_time_gap": 1.5,
+                "upper_time_gap": 10,
             }
         )
         return cfg
@@ -45,14 +51,67 @@ class SingleAgentMergeEnv(AbstractEnv):
     def _reward(self, action: int) -> float:
         """
         The vehicle is rewarded for driving with high speed on lanes to the right and avoiding collisions
-        But an additional altruistic penalty is also suffered if any vehicle on the merging lane has a low speed.
         :param action: the action performed
         :return: the reward of the state-action transition
         """
-        vehicle = self.vehicle
 
-        # TODO implement reward function from Dianzhaos paper
-        return 0
+        return self._reward_hart()
+
+    def _reward_hart(self):
+        """
+        Reward function from Fabian Hart from the paper
+        Towards robust car-following based on deep reinforcement learning
+        Same reward function is used in the paper
+        Modified DDPG car-following model with a real-world human driving experience with CARLA simulator
+        by Dianzhao
+        """
+        vehicle = self.vehicle
+        leader = self.road.vehicles[1]
+
+        # speed adherence (5)
+        r_speed = 0
+        if vehicle.speed > self.config["max_speed_reward"]:
+            r_speed = -(vehicle.speed - self.config["max_speed_reward"])
+
+        # jerk minimization (6)
+        j_comf = 2  # [m/s**-3] TODO need to adjust this for model scale
+        r_jerk = -(
+            (1 / j_comf * vehicle.speed) ** 2
+        )  # TODO need to calculate jerk instead of vehicle.speed
+
+        # safety gap (7)
+        b_comf = 2  # [m/s**2]
+        v_dot_min = 9  # [m/s**2]
+        b_kin = 0
+        if vehicle.speed > leader.speed:
+            leader_dist = self._compute_headway_distance(vehicle)
+            b_kin = (vehicle.speed - leader.speed) ** 2 / (2 * leader_dist)
+
+        r_safe = 0
+        if b_kin > b_comf:
+            r_safe = -np.tanh((b_kin - b_comf) / v_dot_min)
+
+        # close gap to leader
+        r_gap = 0
+        g_t = self._compute_headway_distance(vehicle)
+        g_min = self.config["minimum_gap"]
+        T = self.config["desired_time_gap"]
+        g_opt = vehicle.speed * T + g_min
+        g_var = 0.5 * g_opt
+        T_lim = self.config["upper_time_gap"]
+        g_lim = vehicle.speed * T_lim + 2 * g_min
+        g_star = 1.2 * g_opt  # TODO cant find value in paper
+
+        r_gap = scipy.stat.norm.pdf((g_t - g_opt) / g_var) / scipy.stats.norm.pdf(0)
+        if g_t > g_star:
+            r_gap *= 1 - (g_t - g_star) / (g_lim - g_star)
+
+        return (
+            r_safe
+            + self.config["speed_reward_weight"] * r_speed
+            + self.config["gap_reward_weight"] * r_gap
+            + self.config["jerk_reward_weight"] * r_jerk
+        )
 
     def _is_terminal(self) -> bool:
         """The episode is over when a collision occurs"""
