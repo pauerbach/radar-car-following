@@ -684,7 +684,7 @@ class DefensiveVehicle(LinearVehicle):
 
 
 class RandomVehicle(ControlledVehicle):
-    ACC_CHANGE_DELAY = 1
+    SPEED_CHANGE_DELAY = 0.5
 
     COMFORT_ACC_MAX = 0.4  # [m/s2]
     ACC_MAX = 1.0  # [m/s2]
@@ -705,9 +705,18 @@ class RandomVehicle(ControlledVehicle):
         route: Route = None,
     ):
         self.timer = 0
+
+        # Parameters for the ornstein uhlenbeck process
+        self.theta = 0.5  # Speed of mean reversion
+        self.mu = 0.5  # Long-term mean
+        self.sigma = 0.15  # Volatility
+        self.X0 = 0.5  # Initial value
+
         super().__init__(
             road, position, heading, speed, target_lane_index, target_speed, route
         )
+
+        self.last_speed = self.speed
 
     def act(self, action: Union[dict, str] = None):
         """
@@ -728,22 +737,38 @@ class RandomVehicle(ControlledVehicle):
             action["steering"], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE
         )
 
-        self.randomize_speed()
-        action["acceleration"] = self.acceleration()
-        action["acceleration"] = utils.clip(
-            action["acceleration"], self.DEACC_MAX, self.ACC_MAX
-        )
+        # self.randomize_speed()
+        # action["acceleration"] = self.acceleration()
+        # action["acceleration"] = utils.clip(
+        # action["acceleration"], self.DEACC_MAX, self.ACC_MAX
+        # )
 
+        action["acceleration"] = 0
         Vehicle.act(
             self, action
         )  # Skip ControlledVehicle.act(), or the command will be overriden.
 
-    def randomize_speed(self):
-        # TODO implemenet randomization
-        if not utils.do_every(self.ACC_CHANGE_DELAY, self.timer):
-            return
+    def randomize_speed(self, dt):
+        """
+        Randomize the speed using an Orstein Uhlenbeck process
+        as suggested in all car following papers of Ostap
+        """
+
+        # if not utils.do_every(self.SPEED_CHANGE_DELAY, self.timer):
+        #     return
         self.timer = 0
-        self.target_speed = np.random.uniform(low=0.1, high=1)
+
+        # calculate new OU value for speed
+        dW = np.sqrt(dt) * np.random.normal(0, 1)
+        self.speed = (
+            self.last_speed
+            + self.theta * (self.mu - self.last_speed) * dt
+            + self.sigma * dW
+        )
+        self.last_speed = self.speed
+
+        self.speed = np.random.uniform(low=0.1, high=1)
+        self.speed = max(self.speed, 0.2)
 
     def acceleration(self):
         acceleration = self.COMFORT_ACC_MAX * (
@@ -760,3 +785,5 @@ class RandomVehicle(ControlledVehicle):
         """
         self.timer += dt
         super().step(dt)
+
+        self.randomize_speed(dt)
