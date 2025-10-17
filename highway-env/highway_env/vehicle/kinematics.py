@@ -36,7 +36,7 @@ class Vehicle(object):
     DEFAULT_SPEEDS = [23, 25]
     """ Range for random initial speeds [m/s] """
     # MAX_SPEED = 40.0
-    MAX_SPEED = 1.0
+    MAX_SPEED = 1.5
     """ Maximum reachable speed [m/s] """
 
     def __init__(
@@ -183,6 +183,7 @@ class Vehicle(object):
         self.heading += self.speed * math.sin(beta) / (self.LENGTH / 2) * dt
         self.heading = utils.wrap_to_pi(self.heading)
         self.speed += self.action["acceleration"] * dt
+
         self.speed = max(self.speed, 0.18)
         self.on_state_update()
 

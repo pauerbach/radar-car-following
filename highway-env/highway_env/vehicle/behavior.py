@@ -64,8 +64,6 @@ class IDMVehicle(ControlledVehicle):
         )
         self.enable_lane_change = enable_lane_change
         self.timer = timer or (np.sum(self.position) * np.pi) % self.LANE_CHANGE_DELAY
-        self.duTactical = 200
-        # self.exit_lane = self.road.network.get_lane(('c','d', 1))
 
     def randomize_behavior(self):
         pass
@@ -683,3 +681,82 @@ class DefensiveVehicle(LinearVehicle):
         MERGE_ACC_GAIN / (MERGE_VEL_RATIO * MERGE_TARGET_VEL),
         2.0,
     ]
+
+
+class RandomVehicle(ControlledVehicle):
+    ACC_CHANGE_DELAY = 1
+
+    COMFORT_ACC_MAX = 0.4  # [m/s2]
+    ACC_MAX = 1.0  # [m/s2]
+    DEACC_MAX = -2.0  # [m/s2]
+
+    WIDTH = 0.08
+    LENGTH = 0.17
+    LENGTH_SQUARE = LENGTH**2  # Nedded for faster distance comparison
+
+    def __init__(
+        self,
+        road: Road,
+        position: Vector,
+        heading: float = 0,
+        speed: float = 0,
+        target_lane_index: int = None,
+        target_speed: float = None,
+        route: Route = None,
+    ):
+        self.timer = 0
+        super().__init__(
+            road, position, heading, speed, target_lane_index, target_speed, route
+        )
+
+    def act(self, action: Union[dict, str] = None):
+        """
+        Execute an action.
+
+        For now, no action is supported because the vehicle takes all decisions
+        of acceleration and lane changes on its own, based on the IDM and MOBIL models.
+
+        :param action: the action
+        """
+        if self.crashed:
+            return
+        action = {}
+
+        self.follow_road()
+        action["steering"] = self.steering_control(self.target_lane_index)
+        action["steering"] = utils.clip(
+            action["steering"], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE
+        )
+
+        self.randomize_speed()
+        action["acceleration"] = self.acceleration()
+        action["acceleration"] = utils.clip(
+            action["acceleration"], self.DEACC_MAX, self.ACC_MAX
+        )
+
+        Vehicle.act(
+            self, action
+        )  # Skip ControlledVehicle.act(), or the command will be overriden.
+
+    def randomize_speed(self):
+        # TODO implemenet randomization
+        if not utils.do_every(self.ACC_CHANGE_DELAY, self.timer):
+            return
+        self.timer = 0
+        self.target_speed = np.random.uniform(low=0.1, high=1)
+
+    def acceleration(self):
+        acceleration = self.COMFORT_ACC_MAX * (
+            1 - (self.speed / self.target_speed) ** 4
+        )
+
+        return acceleration
+
+    def step(self, dt: float):
+        """
+        Step the simulation.
+        Increases a timer used for decision policies, and step the vehicle dynamics.
+        :param dt: timestep
+        """
+        self.timer += dt
+        super().step(dt)

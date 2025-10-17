@@ -7,7 +7,7 @@ from highway_env.road.road import (
     RoadNetworkCommonRoad,
     RoadCommonRoad,
 )
-from highway_env.vehicle.behavior import ModelIDMVehicle
+from highway_env.vehicle.behavior import ModelIDMVehicle, RandomVehicle
 
 from commonroad.common.file_reader import CommonRoadFileReader
 
@@ -30,20 +30,9 @@ class SingleAgentMergeEnv(AbstractEnv):
                     "type": "ContinousSteering",
                 },
                 "observation": {"type": "Radar"},
-                "duration": 15,  # time step
+                "duration": 50,  # time step
                 "policy_frequency": 5,  # [Hz]
-                "merging_speed_reward": -0.5,
-                "right_lane_reward": 0.1,
-                "lane_change_reward": -0.05,
-                "reward_speed_range": [0.2, 0.6],
                 "collision_reward": 200,
-                "high_speed_reward": 1,
-                "offramp_reward": 100,
-                "HEADWAY_COST": 4,  # default=1
-                "HEADWAY_TIME": 1.2,  # default=1.2[s]
-                "MERGING_LANE_COST": 4,  # default=4
-                "LANE_CHANGE_COST": 1,  # default=0.5
-                "traffic_density": 1,  # easy or hard modes
                 "scaling": 320.76,
                 "centering_position": [0.8, -0.6],
             }
@@ -130,12 +119,13 @@ class SingleAgentMergeEnv(AbstractEnv):
 
         """Spawn HDV"""
         lane = self.road.network.get_lane(leader_lane_index)
-        veh = ModelIDMVehicle(
+        # veh = ModelIDMVehicle(
+        veh = RandomVehicle(
             self.road,
             lane.position(start_pos_hdv, 0),
             lane.heading_at(start_pos_hdv),
             # initial_speed[1],
-            1.0,
+            0.5,
         )
 
         veh.enable_lane_change = False
