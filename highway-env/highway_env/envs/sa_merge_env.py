@@ -41,6 +41,8 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "minimum_gap": 2,
                 "desired_time_gap": 1.5,
                 "upper_time_gap": 10,
+                "safety_weight": 0.5,
+                "effiency_weight": 0.8,
             }
         )
         return cfg
@@ -55,7 +57,43 @@ class SingleAgentMergeEnv(AbstractEnv):
         :return: the reward of the state-action transition
         """
 
-        return self._reward_hart()
+        return self._reward_li()
+        # return self._reward_hart()
+
+    def _reward_li(self):
+        """
+        Reward function from Dianzhao from the paper
+        Vision-based DRL Autonomous Driving Agent with Sim2Real Transfer
+        which was used with the Duckiebots
+        """
+
+        vehicle = self.vehicle
+        leader = self.road.vehicles[1]
+
+        # Safety criterion
+        d = self._compute_headway_distance(vehicle)
+        delta_v = vehicle.speed - leader.speed
+        ttc = d / delta_v
+
+        r_safe = 0
+        if ttc > 0 and ttc < 1.5:
+            r_safe = np.log(ttc / 1.5)
+
+        # Driving effiency
+        mu = 0.4226
+        sigma = 0.4365
+        h = (d + leader.LENGTH) / vehicle.speed
+
+        r_eff = (
+            1
+            / np.sqrt(2 * np.pi * h * sigma)
+            * np.exp(-((np.log(h) - mu) ** 2) / (2 * sigma**2))
+        )
+
+        return (
+            self.config["safety_weight"] * r_safe
+            + self.config["effiency_weight"] * r_eff
+        )
 
     def _reward_hart(self):
         """
