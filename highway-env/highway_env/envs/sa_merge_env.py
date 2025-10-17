@@ -1,32 +1,13 @@
 import numpy as np
 
-# from gym.envs.registration import register
 from gymnasium.envs.registration import register
 
-from highway_env import utils
 from highway_env.envs.common.abstract import AbstractEnv
-from highway_env.road.lane import (
-    LineType,
-    StraightLane,
-    SineLane,
-    HorizontalLane,
-    DEFAULT_WIDTH,
-)
 from highway_env.road.road import (
-    Road,
-    RoadNetwork,
     RoadNetworkCommonRoad,
     RoadCommonRoad,
 )
 from highway_env.vehicle.behavior import ModelIDMVehicle
-from highway_env.vehicle.kinematics import ModelVehicle
-from highway_env.vehicle.controller import ControlledVehicle
-from highway_env.vehicle.graphics import VehicleGraphics
-
-# from highway_env.vehicle.objects import Obstacle
-from highway_env.road.objects import Obstacle
-
-from highway_env.vehicle.kinematics import Vehicle, RealVehicle
 
 from commonroad.common.file_reader import CommonRoadFileReader
 
@@ -40,9 +21,6 @@ class SingleAgentMergeEnv(AbstractEnv):
     vehicles.
     """
 
-    n_a = 5
-    n_s = (25,)
-
     @classmethod
     def default_config(cls) -> dict:
         cfg = super().default_config()
@@ -50,7 +28,6 @@ class SingleAgentMergeEnv(AbstractEnv):
             {
                 "action": {
                     "type": "ContinousSteering",
-                    # "type": "DiscreteMetaAction",
                 },
                 "observation": {"type": "Radar"},
                 "duration": 15,  # time step
@@ -63,16 +40,11 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "high_speed_reward": 1,
                 "offramp_reward": 100,
                 "HEADWAY_COST": 4,  # default=1
-                # "HEADWAY_COST": 1,  # default=1
                 "HEADWAY_TIME": 1.2,  # default=1.2[s]
                 "MERGING_LANE_COST": 4,  # default=4
                 "LANE_CHANGE_COST": 1,  # default=0.5
-                # "LANE_CHANGE_COST": 0.5,  # default=0.5
                 "traffic_density": 1,  # easy or hard modes
                 "scaling": 320.76,
-                # "scaling": 389.402,
-                # "scaling": 136.34,
-                # "centering_position": [0.8, -0.8],
                 "centering_position": [0.8, -0.6],
             }
         )
@@ -82,67 +54,23 @@ class SingleAgentMergeEnv(AbstractEnv):
         self.vehicle = veh
 
     def _reward(self, action: int) -> float:
-        # Cooperative reward
-        return self._agent_reward(action, self.vehicle)
-
-    def _agent_reward(self, action: int, vehicle: Vehicle) -> float:
         """
         The vehicle is rewarded for driving with high speed on lanes to the right and avoiding collisions
         But an additional altruistic penalty is also suffered if any vehicle on the merging lane has a low speed.
         :param action: the action performed
         :return: the reward of the state-action transition
         """
-        # the optimal reward is 0
-        scaled_speed = utils.lmap(
-            vehicle.speed, self.config["reward_speed_range"], [0, 1]
-        )
-        # compute cost for staying on the merging lane
-        if (
-            vehicle.lane_index == 5
-            and vehicle.position[0] > -2
-            and vehicle.position[0] < 2
-        ):
-            Merging_lane_cost = -np.exp(
-                # -((vehicle.position[0] - sum(self.ends[:3])) ** 2) / (10 * self.ends[2])
-                -((vehicle.position[0] - (-2) - 5) ** 2) / (10 * 5)
-            )
-        else:
-            Merging_lane_cost = 0
+        vehicle = self.vehicle
 
-        # give penalty if the agent drives on the offramp
-        # if vehicle.lane_index == 7146164179188 and vehicle.position[0] > 320:
-        #     offramp_cost = -self.config["offramp_reward"]
-        # else:
-        #     offramp_cost = 0
-
-        # lane change cost to avoid unnecessary/frequent lane changes
-        Lane_change_cost = (
-            -1 * self.config["LANE_CHANGE_COST"] if action == 0 or action == 2 else 0
-        )
-        # compute headway cost
-        headway_distance = self._compute_headway_distance(vehicle)
-        Headway_cost = (
-            np.log(headway_distance / (self.config["HEADWAY_TIME"] * vehicle.speed))
-            if vehicle.speed > 0
-            else 0
-        )
-
-        # compute overall reward
-        reward = (
-            self.config["collision_reward"] * (-1 * vehicle.crashed)
-            + (self.config["high_speed_reward"] * np.clip(scaled_speed, 0, 1))
-            + self.config["MERGING_LANE_COST"] * Merging_lane_cost
-            + self.config["HEADWAY_COST"] * (Headway_cost if Headway_cost < 0 else 0)
-            + Lane_change_cost
-            # + offramp_cost
-        )
-
-        return reward
+        # TODO implement reward function from Dianzhaos paper
+        return 0
 
     def _is_terminal(self) -> bool:
         """The episode is over when a collision occurs"""
-        return self.vehicle.crashed
-        # or self.steps >= self.config["duration"] * self.config["policy_frequency"]
+        return (
+            self.vehicle.crashed
+            or self.steps >= self.config["duration"] * self.config["policy_frequency"]
+        )
 
     def _reset(self, num_CAV=1, num_HDV=6) -> None:
         self._make_road()
@@ -156,8 +84,10 @@ class SingleAgentMergeEnv(AbstractEnv):
         :return: the road
         """
 
-        scenario, _ = CommonRoadFileReader("./track.xml").open()
-        # scenario, _ = CommonRoadFileReader("./track2.xml").open()
+        # scenario, _ = CommonRoadFileReader("./track.xml").open()
+        scenario, _ = CommonRoadFileReader("./track2.xml").open()
+        # scenario, _ = CommonRoadFileReader("./track3.xml").open()
+        # scenario, _ = CommonRoadFileReader("./track5.xml").open()
 
         net = scenario.lanelet_network
         net_common_road = RoadNetworkCommonRoad(net, is_ring=True)
@@ -171,7 +101,8 @@ class SingleAgentMergeEnv(AbstractEnv):
 
         road = self.road
 
-        through_lane1_index = 1
+        ego_lane_index = 1
+        leader_lane_index = 1
         start_pos_cav = 0.5
         start_pos_hdv = 1.5
 
@@ -183,12 +114,13 @@ class SingleAgentMergeEnv(AbstractEnv):
         initial_speed = list(initial_speed)
 
         """Spawn CAV"""
-        lane = self.road.network.get_lane(through_lane1_index)
+        lane = self.road.network.get_lane(ego_lane_index)
         ego_vehicle = self.action_type.vehicle_class(
             self.road,
             lane.position(start_pos_cav, 0),
             lane.heading_at(start_pos_cav),
-            initial_speed[0],
+            # initial_speed[0],
+            0.5,
         )
 
         self.vehicle = ego_vehicle
@@ -197,12 +129,13 @@ class SingleAgentMergeEnv(AbstractEnv):
         road.vehicles.append(ego_vehicle)
 
         """Spawn HDV"""
-        lane = self.road.network.get_lane(through_lane1_index)
+        lane = self.road.network.get_lane(leader_lane_index)
         veh = ModelIDMVehicle(
             self.road,
             lane.position(start_pos_hdv, 0),
             lane.heading_at(start_pos_hdv),
-            initial_speed[1],
+            # initial_speed[1],
+            1.0,
         )
 
         veh.enable_lane_change = False

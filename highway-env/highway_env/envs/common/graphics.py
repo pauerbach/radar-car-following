@@ -117,21 +117,23 @@ class EnvViewer(object):
             elif event.type == pygame.MOUSEBUTTONUP:
                 pos = pygame.mouse.get_pos()
                 click_pos = self.sim_surface.pix2pos(pos[0], pos[1])
-                print(click_pos)
+                # print(click_pos)
 
-                closest = None
-                closest_dist = 1e8
-                for v in self.env.road.vehicles:
-                    dx = click_pos[0] - v.position[0]
-                    dy = click_pos[1] - v.position[1]
-                    dist = math.hypot(dx, dy)
+                self.env.road.vehicles[1].position = np.array(click_pos)
 
-                    if dist < closest_dist:
-                        closest_dist = dist
-                        closest = v
-
-                self.selected_vehicle = closest
-
+                # closest = None
+                # closest_dist = 1e8
+                # for v in self.env.road.vehicles:
+                #     dx = click_pos[0] - v.position[0]
+                #     dy = click_pos[1] - v.position[1]
+                #     dist = math.hypot(dx, dy)
+                #
+                #     if dist < closest_dist:
+                #         closest_dist = dist
+                #         closest = v
+                #
+                # self.selected_vehicle = closest
+                #
             self.sim_surface.handle_event(event)
             if self.env.action_type:
                 EventHandler.handle_event(self.env.action_type, event)
@@ -161,13 +163,13 @@ class EnvViewer(object):
         )
 
         # visualize the surrounding vehicles of the selected vehicle
-        if self.selected_vehicle is not None:
-            RoadGraphics.mark_vehicles(self.sim_surface, self.selected_vehicle)
-            RoadGraphics.display_projected_vehicle(
-                self.sim_surface, self.selected_vehicle, self.env.road
-            )
-            RoadGraphics.display_information(self.sim_surface, self.selected_vehicle)
-
+        # if self.selected_vehicle is not None:
+        #     RoadGraphics.mark_vehicles(self.sim_surface, self.selected_vehicle)
+        #     RoadGraphics.display_projected_vehicle(
+        #         self.sim_surface, self.selected_vehicle, self.env.road
+        #     )
+        #     RoadGraphics.display_information(self.sim_surface, self.selected_vehicle)
+        #
         if self.agent_display:
             self.agent_display(self.agent_surface, self.sim_surface)
             if not self.offscreen:

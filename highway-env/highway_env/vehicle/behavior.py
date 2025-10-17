@@ -136,16 +136,6 @@ class IDMVehicle(ControlledVehicle):
             action["steering"], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE
         )
 
-        # TODO take the start and end of the merging section from the road network
-        # distance_to_exit = abs(310 - self.position[0])
-        distance_to_exit = abs(11.02 - self.position[0])
-
-        # only decelearte if we are on the wrong lane
-        # if not self.on_track():
-        #     self.alpha_v0 = max(0.2, distance_to_exit / self.duTactical)
-        # else:  # reset after passing exit
-        #     self.alpha_v0 = 1
-
         # currently lane change happening
         if self.target_lane_index != self.lane_index:
             front_vehicle, _ = self.road.surrounding_vehicles(
@@ -156,7 +146,6 @@ class IDMVehicle(ControlledVehicle):
         action["acceleration"] = self.acceleration(
             ego_vehicle=self, front_vehicle=front_vehicle, rear_vehicle=rear_vehicle
         )
-        # action['acceleration'] = self.recover_from_stop(action['acceleration'])
         action["acceleration"] = utils.clip(
             action["acceleration"], self.DEACC_MAX, self.ACC_MAX
         )
@@ -164,30 +153,6 @@ class IDMVehicle(ControlledVehicle):
         Vehicle.act(
             self, action
         )  # Skip ControlledVehicle.act(), or the command will be overriden.
-
-    def on_track(self):
-        # TODO take the start and end of the merging section from the road network
-        if (
-            # (self.lane_index == 1 or self.lane_index == 3)
-            # and self.position[0] > 230
-            # and self.position[0] < 310
-            # and self.RIGHT_BIAS > 0.01
-            (self.lane_index == 1 or self.lane_index == 2)
-            and self.position[0] > 8.3
-            and self.position[0] < 11.0
-            and self.RIGHT_BIAS > 0.01
-        ):
-            return False
-
-        # if (
-        #     (self.lane_index == 7146164179188)
-        #     and self.position[0] > 230
-        #     and self.position[0] < 310
-        #     and self.RIGHT_BIAS < -0.01
-        # ):
-        #     return False
-        #
-        return True
 
     def step(self, dt: float):
         """
@@ -220,11 +185,7 @@ class IDMVehicle(ControlledVehicle):
         """
         if not ego_vehicle or isinstance(ego_vehicle, RoadObject):
             return 0
-        # ego_target_speed = utils.not_zero(ego_vehicle.target_speed)
         ego_target_speed = getattr(ego_vehicle, "target_speed", 0)
-
-        # adjust target speed for special circumstances
-        # ego_target_speed *= ego_vehicle.alpha_v0
 
         acceleration = self.COMFORT_ACC_MAX * (
             1 - (max(ego_vehicle.speed, 0) / ego_target_speed) ** self.DELTA
@@ -263,8 +224,6 @@ class IDMVehicle(ControlledVehicle):
             if projected
             else ego_vehicle.speed - front_vehicle.speed
         )
-        # if (ego_vehicle.id == 3 and front_vehicle.id == 6) or (ego_vehicle.id == 7 and front_vehicle.id ==6):
-        # print(f"Deltav dv {dv} between {ego_vehicle.id} {ego_vehicle.speed} and {front_vehicle.id} {front_vehicle.speed}")
         d_star = (
             d0 + ego_vehicle.speed * tau + ego_vehicle.speed * dv / (2 * np.sqrt(ab))
         )
@@ -394,29 +353,6 @@ class IDMVehicle(ControlledVehicle):
 
         # All clear, let's go!
         return True
-
-    def recover_from_stop(self, acceleration: float) -> float:
-        """
-        If stopped on the wrong lane, try a reversing maneuver.
-
-        :param acceleration: desired acceleration from IDM
-        :return: suggested acceleration to recover from being stuck
-        """
-        stopped_speed = 5
-        safe_distance = 200
-        # Is the vehicle stopped on the wrong lane?
-        if self.target_lane_index != self.lane_index and self.speed < stopped_speed:
-            _, rear = self.road.neighbour_vehicles(self)
-            _, new_rear = self.road.neighbour_vehicles(
-                self, self.road.network.get_lane(self.target_lane_index)
-            )
-            # Check for free room behind on both lanes
-            if (not rear or rear.lane_distance_to(self) > safe_distance) and (
-                not new_rear or new_rear.lane_distance_to(self) > safe_distance
-            ):
-                # Reverse
-                return -self.COMFORT_ACC_MAX / 2
-        return acceleration
 
 
 class ModelIDMVehicle(IDMVehicle):
