@@ -89,7 +89,7 @@ class SingleAgentMergeEnv(AbstractEnv):
 
         r_eff = (
             1
-            / np.sqrt(2 * np.pi * h * sigma)
+            / (np.sqrt(2 * np.pi) * h * sigma)
             * np.exp(-((np.log(h) - mu) ** 2) / (2 * sigma**2))
         )
 

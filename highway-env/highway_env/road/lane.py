@@ -198,7 +198,7 @@ class CommonRoadLane(AbstractLane):
         self.length = self.lanelet.distance[-1]
 
         old_distances = self.lanelet._distance
-        distances_resample = np.linspace(old_distances[0], old_distances[-1], 500)
+        distances_resample = np.linspace(old_distances[0], old_distances[-1], 100)
         center_vertices = self.lanelet.center_vertices
 
         x_resample = np.interp(distances_resample, old_distances, center_vertices[:, 0])
@@ -262,6 +262,8 @@ class CommonRoadLane(AbstractLane):
             vertex1 = self.lanelet.center_vertices[closest_vertex_index, :]
             vertex2 = self.lanelet.center_vertices[closest_vertex_index + 1, :]
 
+        # see https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points
+        # for reference
         direction_vector = vertex2 - vertex1
         point_vector = vertex1 - position
 
@@ -278,7 +280,15 @@ class CommonRoadLane(AbstractLane):
 
         # longitudinal are precomputed
         long = self.lanelet.distance[closest_vertex_index]
-        return (long, -lat)
+
+        # compute the additional distance between the two closest vertices
+        a = direction_vector / utils.norm_accurate(vertex2, vertex1)
+        b = position - vertex1
+
+        # fast dot product
+        long_add = a[0] * b[0] + a[1] * b[1]
+
+        return (long + long_add, -lat)
 
     def heading_at(self, longitudinal: float) -> float:
         """
@@ -310,33 +320,33 @@ class CommonRoadLane(AbstractLane):
         # TODO assumption lane always has same width
         return self.width
 
-    def distance_between_points(self, position1: np.ndarray, position2: np.ndarray):
-        """Compute the lane distance between two points on the lane"""
-        indx_1 = utils.pyargmindist(
-            self.lengths, self.lanelet.center_vertices, position1
-        )
-
-        indx_2 = utils.pyargmindist(
-            self.lengths, self.lanelet.center_vertices, position2
-        )
-
-        x1 = self.lanelet.distance[indx_1]
-        x2 = self.lanelet.distance[indx_2]
-
-        dx = x2 - x1
-
-        if self.ring:
-            sign = -1 if dx < 0 else 1
-            dx = abs(dx)
-
-            if dx > 0.5 * self.length:
-                dx = self.length - dx
-                sign = sign * -1
-
-            return sign * dx
-
-        return dx
-
+    # def distance_between_points(self, position1: np.ndarray, position2: np.ndarray):
+    #     """Compute the lane distance between two points on the lane"""
+    #     indx_1 = utils.pyargmindist(
+    #         self.lengths, self.lanelet.center_vertices, position1
+    #     )
+    #
+    #     indx_2 = utils.pyargmindist(
+    #         self.lengths, self.lanelet.center_vertices, position2
+    #     )
+    #
+    #     x1 = self.lanelet.distance[indx_1]
+    #     x2 = self.lanelet.distance[indx_2]
+    #
+    #     dx = x2 - x1
+    #
+    #     if self.ring:
+    #         sign = -1 if dx < 0 else 1
+    #         dx = abs(dx)
+    #
+    #         if dx > 0.5 * self.length:
+    #             dx = self.length - dx
+    #             sign = sign * -1
+    #
+    #         return sign * dx
+    #
+    #     return dx
+    #
     def is_reachable_from(self, position: np.ndarray) -> bool:
         """
         Whether the lane is reachable from a given world position
@@ -362,8 +372,8 @@ class CommonRoadLane(AbstractLane):
         vehicle_length: float = 5,
     ) -> bool:
         if not longitudinal:
-            print("something wrong")
-            print(position)
+            # print("something wrong")
+            # print(position)
             longitudinal, _ = self.local_coordinates(position)
         return longitudinal > self.length - vehicle_length
 

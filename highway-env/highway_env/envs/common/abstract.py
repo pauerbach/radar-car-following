@@ -334,7 +334,7 @@ class AbstractEnv(gym.Env):
                 if hd < headway_distance:
                     headway_distance = hd
 
-        return headway_distance
+        return headway_distance - vehicle.LENGTH
 
     def __deepcopy__(self, memo):
         """Perform a deep copy but without copying the environment viewer."""
