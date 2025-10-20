@@ -153,21 +153,20 @@ class ContinuousAction(ActionType):
 
 class ContinousSteering(ActionType):
     """
-    An continuous action space for throttle and/or steering angle.
+    An continuous action space for speed
+    Steering angle is calculated based on lane keeping controller
+    Lane changing is not possible with this action.
 
-    If both throttle and steering are enabled, they are set in this order: [throttle, steering]
-
-    The space intervals are always [-1, 1], but are mapped to throttle/steering intervals through configurations.
+    The space intervals are always [-1, 1], but are mapped to speed intervals through configurations.
     """
 
-    ACCELERATION_RANGE = (-1.0, 1.0)
-    """Acceleration range: [-x, x], in m/s²."""
+    SPEED_RANGE = (0.2, 1.0)
+    """Speed range: [-x, x], in m/s."""
 
     def __init__(
         self,
         env: "AbstractEnv",
-        acceleration_range: Optional[Tuple[float, float]] = None,
-        dynamical: bool = False,
+        speed_range: Optional[Tuple[float, float]] = None,
         clip: bool = True,
         **kwargs,
     ) -> None:
@@ -175,16 +174,11 @@ class ContinousSteering(ActionType):
         Create a continuous action space.
 
         :param env: the environment
-        :param acceleration_range: the range of acceleration values [m/s²]
-        :param lateral: enable steering control
-        :param dynamical: whether to simulate dynamics (i.e. friction) rather than kinematics
+        :param speed_range: the range of speed values [m/s]
         :param clip: clip action to the defined range
         """
         super().__init__(env)
-        self.dynamical = dynamical
-        self.acceleration_range = (
-            acceleration_range if acceleration_range else self.ACCELERATION_RANGE
-        )
+        self.speed_range = speed_range if speed_range else self.SPEED_RANGE
         self.clip = clip
         self.last_action = np.zeros(self.space().shape)
 
@@ -193,8 +187,6 @@ class ContinousSteering(ActionType):
 
     @property
     def vehicle_class(self) -> Callable:
-        # return Vehicle if not self.dynamical else BicycleVehicle
-        # return Vehicle
         return SteeringMDPVehicle
 
     def act(self, action: np.ndarray) -> None:
@@ -202,7 +194,7 @@ class ContinousSteering(ActionType):
             action = np.clip(action, -1, 1)
 
         self.controlled_vehicle.act(
-            utils.lmap(action, [-1, 1], self.acceleration_range),
+            utils.lmap(action, [-1, 1], self.speed_range),
         )
         self.last_action = action
 

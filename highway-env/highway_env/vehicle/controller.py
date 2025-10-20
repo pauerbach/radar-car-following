@@ -455,32 +455,24 @@ class SteeringMDPVehicle(ControlledVehicle):
             road, position, heading, speed, target_lane_index, target_speed, route
         )
 
-        self.last_action = None
+        self.last_speed = None
 
-    def act(self, action=None) -> None:
-        """
-        Perform a high-level action.
-
-        - If the action is a speed change, choose speed from the allowed discrete range.
-        - Else, forward action to the ControlledVehicle handler.
-
-        :param action: a high-level action
-        """
-
+    def act(self, speed=None) -> None:
         self.follow_road()
 
-        if action is None:
-            action = self.last_action
+        if speed is None:
+            speed = self.last_speed
 
-        self.last_action = action
+        self.last_speed = speed
 
-        # print(action)
         action = {
             "steering": self.steering_control(self.target_lane_index),
-            "acceleration": action,
+            "acceleration": 0,
         }
         action["steering"] = np.clip(
             action["steering"], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE
         )
 
         Vehicle.act(self, action)
+
+        self.speed = speed

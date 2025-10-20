@@ -170,9 +170,9 @@ class SingleAgentMergeEnv(AbstractEnv):
 
     def _make_road(self) -> None:
         # scenario, _ = CommonRoadFileReader("./track.xml").open()
-        # scenario, _ = CommonRoadFileReader("./track2.xml").open()
+        scenario, _ = CommonRoadFileReader("./track2.xml").open()
         # scenario, _ = CommonRoadFileReader("./rectangle_track.xml").open()
-        scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
+        # scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
         # scenario, _ = CommonRoadFileReader("./track3.xml").open()
         # scenario, _ = CommonRoadFileReader("./track5.xml").open()
 
