@@ -36,7 +36,7 @@ class AbstractEnv(gym.Env):
     observation_type: ObservationType
     action_type: ActionType
     automatic_rendering_callback: Optional[Callable]
-    metadata = {"render.modes": ["human", "rgb_array"]}
+    metadata = {"render_modes": ["human", "rgb_array"]}
     render_mode = "human"
 
     PERCEPTION_DISTANCE = 6.0 * MDPVehicle.SPEED_MAX
@@ -166,9 +166,7 @@ class AbstractEnv(gym.Env):
         """
         raise NotImplementedError
 
-    def reset(
-        self, seed=None, is_training=True, testing_seeds=0, num_CAV=0
-    ) -> Observation:
+    def reset(self, seed=None, options=None) -> Observation:
         """
         Reset the environment to it's initial configuration
 
@@ -181,7 +179,7 @@ class AbstractEnv(gym.Env):
         self.done = False
         self.vehicle_speed = []
         self.vehicle_pos = []
-        self._reset(num_CAV=num_CAV)
+        self._reset()
         self.define_spaces()  # Second, to link the obs and actions to the vehicles once the scene is created
         # set the vehicle id for visualizing
         for i, v in enumerate(self.road.vehicles):
@@ -192,7 +190,7 @@ class AbstractEnv(gym.Env):
 
         return obs, {}
 
-    def _reset(self, num_CAV=1) -> None:
+    def _reset(self) -> None:
         """
         Reset the scene: roads and vehicles.
 

@@ -163,7 +163,7 @@ class SingleAgentMergeEnv(AbstractEnv):
             > self.config["termination_headway"]
         )
 
-    def _reset(self, num_CAV=1, num_HDV=6) -> None:
+    def _reset(self) -> None:
         self._make_road()
         self._make_vehicles(1, 1)
         self.T = int(self.config["duration"] * self.config["policy_frequency"])

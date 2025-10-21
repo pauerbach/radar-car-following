@@ -133,7 +133,7 @@ class RadarObservation(ObservationType):
         super().__init__(env, **kwargs)
 
     def space(self) -> spaces.Space:
-        return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float32)
+        return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float64)
 
     def normalize_obs(self, obs):
         # relative x position of leader to ego vehicle
