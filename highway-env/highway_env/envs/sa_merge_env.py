@@ -53,6 +53,20 @@ class SingleAgentMergeEnv(AbstractEnv):
     def set_vehicle(self, veh):
         self.vehicle = veh
 
+    def _info(self):
+        vehicle = self.vehicle
+        leader = self.road.vehicles[1]
+
+        # Safety criterion
+        d = self._compute_headway_distance(vehicle)
+        delta_v = vehicle.speed - leader.speed
+        ttc = d / max(delta_v, 1e-6)  # clipping to ensure no division by zero
+
+        # Driving effiency
+        h = (d + leader.LENGTH) / vehicle.speed
+
+        return {"ttc": ttc, "headway": h}
+
     def _reward(self, action: int) -> float:
         """
         The vehicle is rewarded for driving with high speed on lanes to the right and avoiding collisions
@@ -169,10 +183,10 @@ class SingleAgentMergeEnv(AbstractEnv):
         self.T = int(self.config["duration"] * self.config["policy_frequency"])
 
     def _make_road(self) -> None:
-        # scenario, _ = CommonRoadFileReader("./track.xml").open()
+        scenario, _ = CommonRoadFileReader("./track.xml").open()
         # scenario, _ = CommonRoadFileReader("./track2.xml").open()
         # scenario, _ = CommonRoadFileReader("./rectangle_track.xml").open()
-        scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
+        # scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
         # scenario, _ = CommonRoadFileReader("./track3.xml").open()
         # scenario, _ = CommonRoadFileReader("./track5.xml").open()
 

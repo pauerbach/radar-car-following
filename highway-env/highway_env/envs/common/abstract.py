@@ -198,6 +198,9 @@ class AbstractEnv(gym.Env):
         """
         raise NotImplementedError()
 
+    def _info(self) -> None:
+        raise NotImplementedError()
+
     def step(self, action: Action) -> Tuple[Observation, float, bool, dict]:
         """
         Perform an action and step the environment dynamics.
@@ -225,11 +228,7 @@ class AbstractEnv(gym.Env):
         # print(f"Reward {reward}")
         # print(f"Obs {obs}")
 
-        info = {
-            "speed": self.vehicle.speed,
-            "crashed": self.vehicle.crashed,
-            "action": action,
-        }
+        info = self._info()
 
         return obs, reward, terminal, False, info
 
