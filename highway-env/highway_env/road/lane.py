@@ -320,6 +320,26 @@ class CommonRoadLane(AbstractLane):
         # TODO assumption lane always has same width
         return self.width
 
+    def distance_between_points(self, position1: np.ndarray, position2: np.ndarray):
+        """Compute the lane distance between two points on the lane"""
+
+        x1 = self.local_coordinates(position1)[0]
+        x2 = self.local_coordinates(position2)[0]
+
+        dx = x2 - x1
+
+        if self.ring:
+            sign = -1 if dx < 0 else 1
+            dx = abs(dx)
+
+            if dx > 0.5 * self.length:
+                dx = self.length - dx
+                sign = sign * -1
+
+            return sign * dx
+
+        return dx
+
     # def distance_between_points(self, position1: np.ndarray, position2: np.ndarray):
     #     """Compute the lane distance between two points on the lane"""
     #     indx_1 = utils.pyargmindist(
