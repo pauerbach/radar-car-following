@@ -224,6 +224,9 @@ class AbstractEnv(gym.Env):
         reward = self._reward(action)
         terminal = self._is_terminal()
 
+        # print(f"Reward {reward}")
+        # print(f"Obs {obs}")
+
         info = {
             "speed": self.vehicle.speed,
             "crashed": self.vehicle.crashed,

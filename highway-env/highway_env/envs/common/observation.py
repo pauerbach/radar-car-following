@@ -133,7 +133,22 @@ class RadarObservation(ObservationType):
         super().__init__(env, **kwargs)
 
     def space(self) -> spaces.Space:
-        return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float32)
+        return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float32)
+
+    def normalize_obs(self, obs):
+        # relative x position of leader to ego vehicle
+        obs[0] = utils.lmap(obs[0], [0.0, 1.0], [-1, 1])
+
+        # relative y position of leader to ego vehicle
+        obs[1] = utils.lmap(obs[1], [-1.0, 1.0], [-1, 1])
+
+        # speed of leader towards ego vehicle
+        obs[2] = utils.lmap(obs[2], [-1.0, 1.0], [-1, 1])
+
+        # absolute speed of ego vehicle
+        obs[3] = utils.lmap(obs[3], [0.2, 1.0], [-1, 1])
+
+        return obs
 
     def observe(self):
         vehicles = self.env.road.vehicles
@@ -160,15 +175,7 @@ class RadarObservation(ObservationType):
 
         speed = np.dot(v, direction / np.linalg.norm(direction))
 
-        # print(veh.velocity)
-        # print(veh.speed)
-        # print(self.observer_vehicle.velocity)
-        # print(self.observer_vehicle.speed)
-        # print(f"Calculated {speed}")
-        # print(f"Should {veh.speed - self.observer_vehicle.speed}")
-        # print("\n")
-
-        return np.array([x, y, speed])
+        return self.normalize_obs(np.array([x, y, speed, self.observer_vehicle.speed]))
 
 
 class KinematicObservation(ObservationType):
