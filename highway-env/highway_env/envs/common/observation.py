@@ -175,7 +175,8 @@ class RadarObservation(ObservationType):
 
         speed = np.dot(v, direction / np.linalg.norm(direction))
 
-        return self.normalize_obs(np.array([x, y, speed, self.observer_vehicle.speed]))
+        #return self.normalize_obs(np.array([x, y, speed, self.observer_vehicle.speed]))
+        return np.array([x, y, speed, self.observer_vehicle.speed])
 
 
 class KinematicObservation(ObservationType):

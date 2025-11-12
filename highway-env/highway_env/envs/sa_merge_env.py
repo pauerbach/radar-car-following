@@ -32,8 +32,10 @@ class SingleAgentMergeEnv(AbstractEnv):
                 },
                 "observation": {"type": "Radar"},
                 "duration": 50,  # time step
-                "policy_frequency": 40,  # [Hz]
-                "simulation_frequency": 40,  # [Hz]
+                #"policy_frequency": 40,  # [Hz]
+                #"simulation_frequency": 40,  # [Hz]
+                "policy_frequency": 10,  # [Hz]
+                "simulation_frequency": 10,  # [Hz]
                 "scaling": 320.76,
                 "centering_position": [0.8, -0.6],
                 # "termination_headway": 2.5,  # [m]
@@ -100,6 +102,7 @@ class SingleAgentMergeEnv(AbstractEnv):
         mu = 0.4226
         sigma = 0.4365
         h = (d + leader.LENGTH) / vehicle.speed
+        h = np.maximum(h, 1e-6)
 
         r_eff = (
             1
@@ -183,10 +186,10 @@ class SingleAgentMergeEnv(AbstractEnv):
         self.T = int(self.config["duration"] * self.config["policy_frequency"])
 
     def _make_road(self) -> None:
-        scenario, _ = CommonRoadFileReader("./track.xml").open()
-        # scenario, _ = CommonRoadFileReader("./track2.xml").open()
+        #scenario, _ = CommonRoadFileReader("./track.xml").open()
+        #scenario, _ = CommonRoadFileReader("./track2.xml").open()
         # scenario, _ = CommonRoadFileReader("./rectangle_track.xml").open()
-        # scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
+        scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
         # scenario, _ = CommonRoadFileReader("./track3.xml").open()
         # scenario, _ = CommonRoadFileReader("./track5.xml").open()
 
