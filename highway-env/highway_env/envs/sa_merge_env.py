@@ -1,6 +1,12 @@
 import numpy as np
 import scipy
 
+import torch
+
+TORCH_DEVICE = (
+    torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+)
+
 from gymnasium.envs.registration import register
 
 from highway_env.envs.common.abstract import AbstractEnv
@@ -32,8 +38,8 @@ class SingleAgentMergeEnv(AbstractEnv):
                 },
                 "observation": {"type": "Radar"},
                 "duration": 50,  # time step
-                #"policy_frequency": 40,  # [Hz]
-                #"simulation_frequency": 40,  # [Hz]
+                # "policy_frequency": 40,  # [Hz]
+                # "simulation_frequency": 40,  # [Hz]
                 "policy_frequency": 10,  # [Hz]
                 "simulation_frequency": 10,  # [Hz]
                 "scaling": 320.76,
@@ -76,8 +82,54 @@ class SingleAgentMergeEnv(AbstractEnv):
         :return: the reward of the state-action transition
         """
 
-        return self._reward_li()
+        # return self._reward_li()
+        original_reward = self._reward_li()
+        mbrl_reward = self._reward_mbrl()
+
+        # print(f"Original {original_reward} MBLR {mbrl_reward}")
+        # assert abs(original_reward - mbrl_reward.item()) < 0.001
         # return self._reward_hart()
+
+    def _reward_mbrl(self):
+        obs = self.observation_type.observe()
+
+        target_x = torch.tensor([obs[0]])
+        target_y = torch.tensor([obs[1]])
+        delta_v = -torch.tensor([obs[2]])
+        ego_speed = torch.tensor([obs[3]])
+
+        # Weights for the two components of the reward function
+        SAFETY_WEIGHT = 0.5
+        EFFICIENCY_WEIGHT = 0.8
+
+        VEHICLE_LENGTH = 0.17
+
+        # Create and move this tensor to GPU so that
+        # we do not waste time moving it repeatedly to GPU later
+        epsilon = torch.tensor([1e-6], device=TORCH_DEVICE, dtype=torch.double)
+        two_pi = torch.tensor([2 * np.pi], device=TORCH_DEVICE, dtype=torch.double)
+
+        # Safety criterion
+        d = torch.hypot(target_x, target_y) - torch.tensor([VEHICLE_LENGTH])
+        ttc = d / torch.maximum(
+            delta_v, epsilon
+        )  # clipping to ensure no division by zero
+
+        r_safe = torch.where((ttc > 0.0) & (ttc < 1.5), torch.log(ttc / 1.5), 0.0)
+
+        # Driving effiency
+        mu = 0.4226
+        sigma = 0.4365
+        h = (d + VEHICLE_LENGTH) / ego_speed
+
+        r_eff = (
+            1
+            # / (torch.sqrt(2 * torch.pi) * h * sigma)
+            / (torch.sqrt(two_pi) * h * sigma)
+            * torch.exp(-((torch.log(h) - mu) ** 2) / (2 * sigma**2))
+        )
+
+        return SAFETY_WEIGHT * r_safe + EFFICIENCY_WEIGHT * r_eff
 
     def _reward_li(self):
         """
@@ -186,8 +238,8 @@ class SingleAgentMergeEnv(AbstractEnv):
         self.T = int(self.config["duration"] * self.config["policy_frequency"])
 
     def _make_road(self) -> None:
-        #scenario, _ = CommonRoadFileReader("./track.xml").open()
-        #scenario, _ = CommonRoadFileReader("./track2.xml").open()
+        # scenario, _ = CommonRoadFileReader("./track.xml").open()
+        # scenario, _ = CommonRoadFileReader("./track2.xml").open()
         # scenario, _ = CommonRoadFileReader("./rectangle_track.xml").open()
         scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
         # scenario, _ = CommonRoadFileReader("./track3.xml").open()

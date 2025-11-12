@@ -160,6 +160,7 @@ class RadarObservation(ObservationType):
 
         leader = veh.to_dict(self.observer_vehicle)
 
+        # TODO need to account for vehicle length
         # convert to coordinate system (rotation) of ego vehicle
         ego = self.observer_vehicle.to_dict()
         x = leader["x"] * np.cos(-ego["heading"]) - leader["y"] * np.sin(

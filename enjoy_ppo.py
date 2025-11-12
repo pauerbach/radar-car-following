@@ -11,8 +11,10 @@ from stable_baselines3 import PPO
 # Parallel environments
 env = gym.make("merge-single-agent-v0")
 
-model = PPO.load("ppo_car_following_straight.zip")
-# model = PPO.load("ppo_car_following_circular.zip")
+# model = PPO.load("results/ppo_car_following_straight.zip")
+# model = PPO.load("results/ppo_car_following_circular.zip")
+# model = PPO.load("results/ppo_car_following_waving.zip")
+model = PPO.load("results/ppo_car_following_straight_no_normalization_10hz.zip")
 
 num_runs = 10000
 
@@ -31,5 +33,5 @@ for _ in range(num_runs):
     env.render()
     time.sleep(1 / env.unwrapped.config["policy_frequency"])
 
-# np.save("ttc_straight.npy", np.array(ttcs))
-# np.save("headway_straight.npy", np.array(headways))
+# np.save("ttc_straight_10hz.npy", np.array(ttcs))
+# np.save("headway_straight_10hz.npy", np.array(headways))

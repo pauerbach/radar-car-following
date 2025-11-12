@@ -3,8 +3,12 @@ import matplotlib.pyplot as plt
 
 # ttc = np.load("ttc_circular.npy")
 # headway = np.load("headway_circular.npy")
-ttc = np.load("ttc_straight.npy")
-headway = np.load("headway_straight.npy")
+# ttc = np.load("ttc_straight.npy")
+# headway = np.load("headway_straight.npy")
+# ttc = np.load("ttc_waving.npy")
+# headway = np.load("headway_waving.npy")
+ttc = np.load("ttc_straight_10hz.npy")
+headway = np.load("headway_straight_10hz.npy")
 
 ttc = ttc[ttc < 10]  # only use ttcs below 10s as in paper
 ttc = ttc[ttc > 0]  # only use ttcs below 10s as in paper
