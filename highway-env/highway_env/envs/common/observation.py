@@ -129,11 +129,20 @@ class TimeToCollisionObservation(ObservationType):
 
 
 class RadarObservation(ObservationType):
-    def __init__(self, env: "AbstractEnv", **kwargs) -> None:
+    def __init__(
+        self,
+        env: "AbstractEnv",
+        normalize: bool = False,
+        discretice: bool = True,
+        **kwargs,
+    ) -> None:
         super().__init__(env, **kwargs)
 
         self.vel_limit = 0.68
         self.vel_resolution = 0.09
+
+        self.normalize = normalize
+        self.discretice = discretice
 
         self.vel_bins = np.arange(-self.vel_limit, self.vel_limit, self.vel_resolution)
 
@@ -181,12 +190,16 @@ class RadarObservation(ObservationType):
 
         speed = np.dot(v, direction / np.linalg.norm(direction))
 
-        # discretize speed the to match the actual radar outputs
-        ind = np.digitize(speed, self.vel_bins) - 1
-        speed = self.vel_bins[ind]
+        if self.discretice:
+            # discretize speed the to match the actual radar outputs
+            ind = np.digitize(speed, self.vel_bins) - 1
+            speed = self.vel_bins[ind]
 
-        # return self.normalize_obs(np.array([x, y, speed, self.observer_vehicle.speed]))
-        return np.array([x, y, speed, self.observer_vehicle.speed])
+        obs = np.array([x, y, speed, self.observer_vehicle.speed])
+        if self.normalize:
+            obs = self.normalize_obs(obs)
+
+        return obs
 
 
 class KinematicObservation(ObservationType):

@@ -168,6 +168,7 @@ class ContinousSteering(ActionType):
         env: "AbstractEnv",
         speed_range: Optional[Tuple[float, float]] = None,
         clip: bool = True,
+        add_noise: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -181,6 +182,7 @@ class ContinousSteering(ActionType):
         self.speed_range = speed_range if speed_range else self.SPEED_RANGE
         self.clip = clip
         self.last_action = np.zeros(self.space().shape)
+        self.add_noise = add_noise
 
     def space(self) -> spaces.Box:
         return spaces.Box(-1.0, 1.0, shape=(1,), dtype=np.float32)
@@ -193,9 +195,11 @@ class ContinousSteering(ActionType):
         if self.clip:
             action = np.clip(action, -1, 1)
 
-        self.controlled_vehicle.act(
-            utils.lmap(action, [-1, 1], self.speed_range),
-        )
+        target_speed = utils.lmap(action, [-1, 1], self.speed_range)
+        if self.add_noise:
+            target_speed += np.random.rand() * 0.1 - 0.05
+
+        self.controlled_vehicle.act(target_speed)
         self.last_action = action
 
 

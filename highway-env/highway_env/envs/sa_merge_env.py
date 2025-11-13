@@ -33,10 +33,12 @@ class SingleAgentMergeEnv(AbstractEnv):
         cfg = super().default_config()
         cfg.update(
             {
-                "action": {
-                    "type": "ContinousSteering",
+                "action": {"type": "ContinousSteering", "add_noise": True},
+                "observation": {
+                    "type": "Radar",
+                    "discretice": True,
+                    "normalize": True,
                 },
-                "observation": {"type": "Radar"},
                 "duration": 50,  # time step
                 # "policy_frequency": 40,  # [Hz]
                 # "simulation_frequency": 40,  # [Hz]
