@@ -84,9 +84,9 @@ class SingleAgentMergeEnv(AbstractEnv):
         :return: the reward of the state-action transition
         """
 
-        # return self._reward_li()
-        original_reward = self._reward_li()
-        mbrl_reward = self._reward_mbrl()
+        return self._reward_li()
+        # original_reward = self._reward_li()
+        # mbrl_reward = self._reward_mbrl()
 
         # print(f"Original {original_reward} MBLR {mbrl_reward}")
         # assert abs(original_reward - mbrl_reward.item()) < 0.001
