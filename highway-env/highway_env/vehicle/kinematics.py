@@ -405,3 +405,35 @@ class ModelVehicle(Vehicle):
         self.LENGTH_SQUARE = self.LENGTH**2  # Nedded for faster distance comparison
         self.MAX_SPEED = 1.0
         """ Maximum reachable speed [m/s] """
+
+
+class Ros2VehicleWrapper:
+    vehicle = None
+
+    def __init__(self, vehicle) -> None:
+        self.vehicle = vehicle
+        self.action_callback = None
+
+    def set_pose(self, position, heading):
+        self.vehicle.position = position
+        self.vehicle.heading = heading
+
+    def register_action_callback(self, callback):
+        self.action_callback = callback
+
+    def step(self, dt) -> None:
+        self.vehicle.step(dt)
+
+        if self.action_callback is not None:
+            self.action_callback(
+                self.vehicle.action["steering"], self.vehicle.speed, self.vehicle.id
+            )
+
+    def __getattr__(self, name):
+        return getattr(self.vehicle, name)
+
+    def __setattr__(self, name, value):
+        if name == "vehicle":  # to avoid infinite recursion
+            super().__setattr__(name, value)
+        else:
+            setattr(self.vehicle, name, value)

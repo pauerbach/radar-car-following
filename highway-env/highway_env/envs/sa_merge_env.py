@@ -15,6 +15,7 @@ from highway_env.road.road import (
     RoadCommonRoad,
 )
 from highway_env.vehicle.behavior import ModelIDMVehicle, RandomVehicle
+from highway_env.vehicle.kinematics import Ros2VehicleWrapper
 
 from commonroad.common.file_reader import CommonRoadFileReader
 
@@ -37,8 +38,11 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "observation": {
                     "type": "Radar",
                     "discretice": True,
-                    "normalize": True,
+                    "normalize": False,
                 },
+                "use_ros": True,
+                "leader_callback": None,
+                "ego_callback": None,
                 "duration": 50,  # time step
                 # "policy_frequency": 40,  # [Hz]
                 # "simulation_frequency": 40,  # [Hz]
@@ -274,6 +278,11 @@ class SingleAgentMergeEnv(AbstractEnv):
             0.2,
         )
 
+        if self.config["use_ros"]:
+            ego_vehicle = Ros2VehicleWrapper(ego_vehicle)
+            if self.config["ego_callback"] is not None:
+                ego_vehicle.register_action_callback(self.config["ego_callback"])
+
         self.vehicle = ego_vehicle
         self.vehicle.color = (200, 0, 150)
         self.vehicle.id = 0
@@ -287,6 +296,11 @@ class SingleAgentMergeEnv(AbstractEnv):
             lane.heading_at(start_pos_hdv),
             0.5,
         )
+
+        if self.config["use_ros"]:
+            veh = Ros2VehicleWrapper(veh)
+            if self.config["leader_callback"] is not None:
+                veh.register_action_callback(self.config["leader_callback"])
 
         road.vehicles.append(veh)
 

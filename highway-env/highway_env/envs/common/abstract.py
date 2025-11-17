@@ -5,7 +5,6 @@ from copy import deepcopy
 import gymnasium as gym
 import numpy as np
 
-from highway_env import utils
 from highway_env.envs.common.action import (
     action_factory,
     Action,
@@ -14,11 +13,9 @@ from highway_env.envs.common.action import (
 from highway_env.envs.common.observation import observation_factory, ObservationType
 
 from highway_env.envs.common.graphics import EnvViewer
-from highway_env.vehicle.behavior import IDMVehicle, LinearVehicle
 from highway_env.vehicle.controller import MDPVehicle
 from highway_env.vehicle.kinematics import Vehicle, RealVehicle
 
-from highway_env.road.objects import Obstacle, Landmark
 
 Observation = np.ndarray
 DEFAULT_WIDTH: float = 4  # width of the straight lane
@@ -78,16 +75,6 @@ class AbstractEnv(gym.Env):
         self.enable_auto_render = False
 
         self.paused = False
-
-        self.ends = [220, 100, 100, 100]  # Before, converging, merge, after
-        self.action_is_safe = True
-        self.ACTIONS_ALL = {
-            "LANE_LEFT": 0,
-            "IDLE": 1,
-            "LANE_RIGHT": 2,
-            "FASTER": 3,
-            "SLOWER": 4,
-        }
 
         self.reset()
 
@@ -177,16 +164,12 @@ class AbstractEnv(gym.Env):
         self.define_spaces()  # First, to set the controlled vehicle class depending on action space
         self.time = self.steps = 0
         self.done = False
-        self.vehicle_speed = []
-        self.vehicle_pos = []
         self._reset()
         self.define_spaces()  # Second, to link the obs and actions to the vehicles once the scene is created
         # set the vehicle id for visualizing
         for i, v in enumerate(self.road.vehicles):
             v.id = i
         obs = self.observation_type.observe()
-
-        self.road.initial_vehicles = deepcopy(self.road.vehicles)
 
         return obs, {}
 
@@ -218,15 +201,11 @@ class AbstractEnv(gym.Env):
 
         self.steps += 1
 
-        # action is a tuple, e.g., (2, 3, 0, 1)
         self._simulate(action)
 
         obs = self.observation_type.observe()
         reward = self._reward(action)
         terminal = self._is_terminal()
-
-        # print(f"Reward {reward}")
-        # print(f"Obs {obs}")
 
         info = self._info()
 
