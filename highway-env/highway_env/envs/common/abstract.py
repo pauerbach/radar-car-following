@@ -33,7 +33,7 @@ class AbstractEnv(gym.Env):
     observation_type: ObservationType
     action_type: ActionType
     automatic_rendering_callback: Optional[Callable]
-    metadata = {"render_modes": ["human", "rgb_array"]}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
     render_mode = "human"
 
     PERCEPTION_DISTANCE = 6.0 * MDPVehicle.SPEED_MAX

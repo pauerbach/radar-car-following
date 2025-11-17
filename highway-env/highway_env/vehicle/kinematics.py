@@ -425,9 +425,7 @@ class Ros2VehicleWrapper:
         self.vehicle.step(dt)
 
         if self.action_callback is not None:
-            self.action_callback(
-                self.vehicle.action["steering"], self.vehicle.speed, self.vehicle.id
-            )
+            self.action_callback(self.vehicle.action["steering"], self.vehicle.speed)
 
     def __getattr__(self, name):
         return getattr(self.vehicle, name)
