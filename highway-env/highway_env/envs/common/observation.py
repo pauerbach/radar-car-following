@@ -164,8 +164,9 @@ class RadarObservation(ObservationType):
         # speed of leader towards ego vehicle
         obs[2] = utils.lmap(obs[2], [-1.0, 1.0], [-1, 1])
 
-        # absolute speed of ego vehicle
-        obs[3] = utils.lmap(obs[3], [0.2, 1.0], [-1, 1])
+        if not self.dist_only:
+            # absolute speed of ego vehicle
+            obs[3] = utils.lmap(obs[3], [0.2, 1.0], [-1, 1])
 
         return obs
 
