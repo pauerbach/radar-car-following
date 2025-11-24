@@ -39,8 +39,9 @@ class SingleAgentMergeEnv(AbstractEnv):
                     "type": "Radar",
                     "discretice": True,
                     "normalize": False,
+                    "dist_only": True,
                 },
-                "use_ros": True,
+                "use_ros": False,
                 "leader_callback": None,
                 "ego_callback": None,
                 "duration": 50,  # time step

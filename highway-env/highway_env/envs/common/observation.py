@@ -134,6 +134,7 @@ class RadarObservation(ObservationType):
         env: "AbstractEnv",
         normalize: bool = False,
         discretice: bool = True,
+        dist_only: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(env, **kwargs)
@@ -143,11 +144,15 @@ class RadarObservation(ObservationType):
 
         self.normalize = normalize
         self.discretice = discretice
+        self.dist_only = dist_only
 
         self.vel_bins = np.arange(-self.vel_limit, self.vel_limit, self.vel_resolution)
 
     def space(self) -> spaces.Space:
-        return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float64)
+        if self.dist_only:
+            return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float64)
+        else:
+            return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float64)
 
     def normalize_obs(self, obs):
         # relative x position of leader to ego vehicle
@@ -172,17 +177,24 @@ class RadarObservation(ObservationType):
             if v.id == 1:
                 veh = v
 
-        leader = veh.to_dict(self.observer_vehicle)
+        if self.dist_only:
+            dist = (
+                np.linalg.norm(self.observer_vehicle.position - veh.position)
+                - self.observer_vehicle.LENGTH
+            )
 
-        # TODO need to account for vehicle length
-        # convert to coordinate system (rotation) of ego vehicle
-        ego = self.observer_vehicle.to_dict()
-        x = leader["x"] * np.cos(-ego["heading"]) - leader["y"] * np.sin(
-            -ego["heading"]
-        )
-        y = leader["x"] * np.sin(-ego["heading"]) + leader["y"] * np.cos(
-            -ego["heading"]
-        )
+        else:
+            leader = veh.to_dict(self.observer_vehicle)
+
+            # TODO need to account for vehicle length
+            # convert to coordinate system (rotation) of ego vehicle
+            ego = self.observer_vehicle.to_dict()
+            x = leader["x"] * np.cos(-ego["heading"]) - leader["y"] * np.sin(
+                -ego["heading"]
+            )
+            y = leader["x"] * np.sin(-ego["heading"]) + leader["y"] * np.cos(
+                -ego["heading"]
+            )
 
         # calculate speed along ray
         v = veh.velocity - self.observer_vehicle.velocity
@@ -195,7 +207,11 @@ class RadarObservation(ObservationType):
             ind = np.digitize(speed, self.vel_bins) - 1
             speed = self.vel_bins[ind]
 
-        obs = np.array([x, y, speed, self.observer_vehicle.speed])
+        if self.dist_only:
+            obs = np.array([dist, speed, self.observer_vehicle.speed])
+        else:
+            obs = np.array([x, y, speed, self.observer_vehicle.speed])
+
         if self.normalize:
             obs = self.normalize_obs(obs)
 
