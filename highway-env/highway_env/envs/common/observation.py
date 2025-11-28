@@ -5,6 +5,10 @@ import gymnasium as gym
 # gym.logger.set_level(40)
 import numpy as np
 import pandas as pd
+from scipy import signal
+from numba import jit, complex64, prange
+import pyfftw
+import matplotlib.pyplot as plt
 
 from highway_env import utils
 
@@ -14,6 +18,321 @@ from highway_env.vehicle.controller import MDPVehicle
 
 if TYPE_CHECKING:
     from highway_env.envs.common.abstract import AbstractEnv
+
+c = 3e8  # Speed of light (m/s)
+
+
+class Draw:
+    # Represents drawing for example
+    #
+    # Draw is done for each antenna, and each antenna is represented for
+    # other subplot
+
+    def __init__(self, max_speed_m_s, max_range_m):
+        # max_range_m:   maximum supported range
+        # max_speed_m_s: maximum supported speed
+        self._h = None
+        self._max_speed_m_s = max_speed_m_s
+        self._max_range_m = max_range_m
+
+        plt.ion()
+
+        self._fig, ax = plt.subplots(nrows=1, ncols=1, figsize=((2) // 2, 2))
+        self._ax = ax
+
+        self._fig.canvas.manager.set_window_title("Doppler")
+        self._fig.canvas.mpl_connect("close_event", self.close)
+        self._is_window_open = True
+
+    def _draw_first_time(self, data):
+        # First time draw
+        #
+        # It computes minimal, maximum value and draw data for all antennas
+        # in same scale
+
+        minmin = np.min(data)
+        maxmax = np.max(data)
+
+        h = self._ax.imshow(
+            data,
+            vmin=minmin,
+            vmax=maxmax,
+            extent=(-self._max_speed_m_s, self._max_speed_m_s, 0, self._max_range_m),
+            aspect="auto",
+            origin="lower",
+        )
+        self._h = h
+
+        self._ax.set_xlabel("velocity (m/s)")
+        self._ax.set_ylabel("distance (m)")
+        self._fig.subplots_adjust(right=0.8)
+        cbar_ax = self._fig.add_axes([0.85, 0.0, 0.03, 1])
+
+        cbar = self._fig.colorbar(self._h, cax=cbar_ax)
+        cbar.ax.set_ylabel("magnitude (dB)")
+
+    def _draw_next_time(self, data):
+        self._h.set_data(data)
+
+    def draw(self, data):
+        if self._is_window_open:
+            rd_map = 20 * np.log10(np.abs(np.average(data, 2)) + 1e-12)
+            if self._h is None:  # handle the first run
+                self._draw_first_time(rd_map)
+            else:
+                self._draw_next_time(rd_map)
+
+            self._fig.canvas.draw_idle()
+            self._fig.canvas.flush_events()
+
+    def close(self, event=None):
+        if self.is_open():
+            self._is_window_open = False
+            plt.close(self._fig)
+            plt.close("all")  # Needed for Matplotlib ver: 3.4.0 and 3.4.1
+            print("Application closed!")
+
+    def is_open(self):
+        return self._is_window_open
+
+
+class RadarSimulator:
+    def __init__(self, fc, B, T_chirp, n_samples, n_chirp, n_rx):
+        # ----------------------------
+        # FMCW waveform
+        # ----------------------------
+        self.fc = fc  # Carrier frequency (Hz)
+        self.B = B  # Bandwidth (Hz)
+        self.T_chirp = T_chirp  # Chirp duration (s)
+        self.n_samples = n_samples  # Number of range samples per chirp
+        self.n_chirp = n_chirp  # Number of chirps (for Doppler)
+        self.n_rx = n_rx  # number or receive antennas (ULA)
+
+        # ----------------------------
+        # Derived parameters
+        # ----------------------------
+        range_res = c / (2 * B)
+        max_range = range_res * n_samples
+        lambda_radar = c / fc
+        v_max = lambda_radar / (4 * T_chirp)
+        v_res = lambda_radar / (2 * n_chirp * T_chirp)
+        print(
+            f"Range resolution: {range_res:.2f} m, Max range: {max_range:.2f} m, Max velocity: {v_max:.2f} m/s, Vel resolution: {v_res:.2f}"
+        )
+
+    def get_max_range(self):
+        range_res = c / (2 * self.B)
+        max_range = range_res * self.n_samples
+
+        return max_range
+
+    def get_max_velocity(self):
+        lambda_radar = c / self.fc
+        v_max = lambda_radar / (4 * self.T_chirp)
+
+        return v_max
+
+    def add_thermal_noise(self, radar_cube, SNR_dB):
+        # ----------------------------
+        # Add thermal noise
+        # ----------------------------
+        signal_power = np.mean(np.abs(radar_cube) ** 2)
+        noise_power = signal_power / (10 ** (SNR_dB / 10))
+        noise = np.sqrt(noise_power / 2) * (
+            np.random.randn(*radar_cube.shape) + 1j * np.random.randn(*radar_cube.shape)
+        )
+        radar_cube += noise
+
+        return radar_cube
+
+    def simulate_radar(self, target):
+        return RadarSimulator._simulate_radar(
+            target,
+            self.fc,
+            self.B,
+            self.T_chirp,
+            self.n_samples,
+            self.n_chirp,
+            self.n_rx,
+        )
+
+    @jit(nopython=True, parallel=True, fastmath=False)
+    def _simulate_radar(target, fc, B, T_chirp, N_r, N_c, N_rx):
+        c = 3e8  # Speed of light (m/s)
+
+        # Derived parameters
+        lambda_radar = c / fc
+        d = c / (2 * fc)  # half-wavelength spacing
+
+        # ----------------------------
+        # Internal Multipath Model for Corner Reflector
+        # ----------------------------
+        # Models multiple internal bounces between reflector plates
+        # producing delayed replicas (ghost peaks in range profile)
+        def corner_internal_reflections(R, base_amplitude, v_base, num_bounces=3):
+            """
+            Simulate multiple internal reflections in a moving trihedral corner reflector.
+            Each internal bounce adds:
+            - extra path length  -> shifted range
+            - small Doppler offset -> spectral spreading
+
+            Returns a list of (effective_range, amplitude_scale, effective_velocity)
+            """
+            reflections = [(R, base_amplitude, v_base)]
+
+            for i in range(1, num_bounces + 1):
+                # extra path due to internal reflection geometry (meters)
+                extra_path = (
+                    0.08 * i
+                )  # ~8cm per bounce #TODO make this a configurable parmater
+                effective_R = R + extra_path
+
+                # amplitude decay with each bounce
+                amp_scale = base_amplitude * (
+                    0.3**i
+                )  # TODO make this a configurable parmater
+
+                # each bounce creates a slight Doppler offset (micro-motion effect)
+                v_eff = v_base * (
+                    1 + 0.25 * i
+                )  # TODO make this a configurable parmater
+
+                reflections.append((effective_R, amp_scale, v_eff))
+
+            return reflections
+
+        # ----------------------------
+        # Simulation setup
+        # ----------------------------
+        t = np.linspace(0, T_chirp, N_r)  # fast time
+        chirps = np.arange(N_c) * T_chirp  # slow time
+
+        radar_cube = np.zeros((N_r, N_c, N_rx), dtype=complex64)
+
+        # ----------------------------
+        # Corner Reflector Clutter Model with Reflective Patterns (Trihedral Signature)
+        # ----------------------------
+        # Simulates realistic angular reflective patterns from trihedral corner reflectors
+        sensor_clutter_rcs = 0.2  # TODO make this a configurable parmater
+        sensor_range_base = 0.01  # TODO make this a configurable parmater
+
+        # for target in targets:
+        R, v, angle_deg, RCS = target
+        angle_center = np.deg2rad(angle_deg)
+
+        # create internal multipath reflections (ghost ranges + Doppler spreads)
+        reflection_paths = corner_internal_reflections(R, RCS, v, num_bounces=2)
+
+        for eff_R, eff_RCS, eff_v in reflection_paths:
+            f_b = 2 * B * eff_R / (c * T_chirp)
+            f_d = 2 * eff_v * fc / c
+
+            R_eff_clutter = sensor_range_base
+            f_b_clutter = 2 * B * R_eff_clutter / (c * T_chirp)
+
+            for n_rx in range(N_rx):
+                # for n_c, t_slow in enumerate(chirps):
+                for n_c in prange(chirps.shape[0]):
+                    t_slow = chirps[n_c]
+                    phase_doppler = 2 * np.pi * f_d * t_slow
+
+                    # simulate angular scattering across beam (micro angular spread)
+                    theta = angle_center
+
+                    phase_angle = 2 * np.pi * n_rx * d * np.sin(theta) / lambda_radar
+
+                    # path_loss = 1.0 / (eff_R ** 2)
+                    path_loss = 1.0
+
+                    radar_cube[:, n_c, n_rx] += (
+                        eff_RCS
+                        * path_loss
+                        * np.exp(
+                            1j * (2 * np.pi * f_b * t + phase_doppler + phase_angle)
+                        )
+                    )
+
+                    # add zero distance clutter
+                    radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
+                        1j * (2 * np.pi * f_b_clutter * t + phase_doppler + 0)
+                    )
+                    radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
+                        1j * (2 * np.pi * f_b_clutter * t + -phase_doppler + 0)
+                    )
+        return radar_cube
+
+
+class RadarPipeline:
+    def __init__(self, num_rx, num_chirps, num_samples):
+        self.num_rx = num_rx
+        self.num_chirps = num_chirps
+        self.num_samples = num_samples
+
+        self.range_window = signal.windows.blackmanharris(self.num_samples).reshape(
+            self.num_samples, 1, 1
+        )
+        self.doppler_window = signal.windows.blackmanharris(self.num_chirps).reshape(
+            1, self.num_chirps, 1
+        )
+
+        # pyfftw.interfaces.cache.enable()
+        # pyfftw.interfaces.cache.set_keepalive_time(60)
+
+        # Byte-aligned inputs are supposedly faster
+        radar_cube_shape = (num_samples * 2, num_chirps, num_rx)
+        range_in_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
+        range_out_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
+
+        range_cube_shape = (num_samples, num_chirps * 2, num_rx)
+        doppler_in_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
+        doppler_out_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
+
+        self.range_fftw_object = pyfftw.FFTW(
+            range_in_array,
+            range_out_array,
+            axes=(0,),
+            direction="FFTW_FORWARD",
+            flags=("FFTW_ESTIMATE",),
+            threads=1,
+        )
+        self.doppler_fftw_object = pyfftw.FFTW(
+            doppler_in_array,
+            doppler_out_array,
+            axes=(1,),
+            direction="FFTW_FORWARD",
+            flags=("FFTW_ESTIMATE",),
+            threads=1,
+        )
+
+    def run(self, radar_cube):
+        # ----------------------------
+        # Range FFT
+        # ----------------------------
+        radar_cube = np.multiply(radar_cube, self.range_window)
+        radar_cube = np.pad(
+            radar_cube, ((0, self.num_samples), (0, 0), (0, 0)), "constant"
+        )
+
+        # range_fft = np.fft.fft(radar_cube, axis=0) / N_r
+        range_fft = self.range_fftw_object(radar_cube)  # / N_r
+        # range_fft = pyfftw.interfaces.numpy_fft.fft(radar_cube, axis=0) / N_r
+
+        range_fft = 2 * range_fft[range(int(self.num_samples)), :, :]
+
+        # ----------------------------
+        # Doppler FFT
+        # ----------------------------
+        range_fft = np.multiply(range_fft, self.doppler_window)
+        range_fft = np.pad(
+            range_fft, ((0, 0), (0, self.num_chirps), (0, 0)), "constant"
+        )
+
+        # doppler_fft = np.fft.fft(range_fft, axis=1) / N_c
+        doppler_fft = self.doppler_fftw_object(range_fft)  # / N_c
+        # doppler_fft = pyfftw.interfaces.numpy_fft.fft(range_fft, axis=1) / N_c
+        doppler_fft = np.fft.fftshift(doppler_fft, axes=1)
+
+        return doppler_fft
 
 
 class ObservationType(object):
@@ -135,6 +454,7 @@ class RadarObservation(ObservationType):
         normalize: bool = False,
         discretice: bool = True,
         dist_only: bool = False,
+        use_radar_simulation: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(env, **kwargs)
@@ -145,12 +465,43 @@ class RadarObservation(ObservationType):
         self.normalize = normalize
         self.discretice = discretice
         self.dist_only = dist_only
+        self.use_radar_simulation = use_radar_simulation
 
         self.vel_bins = np.arange(-self.vel_limit, self.vel_limit, self.vel_resolution)
+
+        if self.use_radar_simulation:
+            # FMCW waveform
+            fc = 60.75e9  # Carrier frequency (Hz)
+            B = 5.5e9  # Bandwidth (Hz)
+            T_chirp = 0.000591125  # Chirp duration (s)
+            self.N_r = 64  # Number of range samples per chirp
+            self.N_c = 32  # Number of chirps (for Doppler)
+            self.N_rx = 3  # number of receive antennas (ULA)
+
+            self.radar_simulator = RadarSimulator(
+                fc, B, T_chirp, self.N_r, self.N_c, self.N_rx
+            )
+            self.radar_pipeline = RadarPipeline(self.N_rx, self.N_c, self.N_r)
+            max_range = self.radar_simulator.get_max_range()
+            max_doppler = self.radar_simulator.get_max_velocity()
+
+    #         self.draw = Draw(max_doppler, max_range)
+    #
+    # def __del__(self):
+    #     if self.use_radar_simulation:
+    #         self.draw.close()
 
     def space(self) -> spaces.Space:
         if self.dist_only:
             return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float64)
+        elif self.use_radar_simulation:
+            return spaces.Box(
+                # shape=(self.N_r, self.N_c * 2, self.N_rx),
+                shape=(self.N_r, self.N_c * 2, 1),
+                low=0,
+                high=1,
+                dtype=np.float64,
+            )
         else:
             return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float64)
 
@@ -178,7 +529,7 @@ class RadarObservation(ObservationType):
             if v.id == 1:
                 veh = v
 
-        if self.dist_only:
+        if self.dist_only or self.use_radar_simulation:
             dist = (
                 np.linalg.norm(self.observer_vehicle.position - veh.position)
                 - self.observer_vehicle.LENGTH
@@ -187,7 +538,6 @@ class RadarObservation(ObservationType):
         else:
             leader = veh.to_dict(self.observer_vehicle)
 
-            # TODO need to account for vehicle length
             # convert to coordinate system (rotation) of ego vehicle
             ego = self.observer_vehicle.to_dict()
             x = leader["x"] * np.cos(-ego["heading"]) - leader["y"] * np.sin(
@@ -196,6 +546,10 @@ class RadarObservation(ObservationType):
             y = leader["x"] * np.sin(-ego["heading"]) + leader["y"] * np.cos(
                 -ego["heading"]
             )
+
+            x -= (
+                self.observer_vehicle.LENGTH
+            )  # account for radar offset from center of car
 
         # calculate speed along ray
         v = veh.velocity - self.observer_vehicle.velocity
@@ -212,6 +566,22 @@ class RadarObservation(ObservationType):
             obs = np.array([dist, speed, self.observer_vehicle.speed])
         else:
             obs = np.array([x, y, speed, self.observer_vehicle.speed])
+
+        if self.use_radar_simulation:
+            target = [
+                dist,
+                speed,
+                10.0,
+                0.9,
+            ]  # TODO calculate angle and make RCS a parameter
+            radar_cube = self.radar_simulator.simulate_radar(target)
+            radar_cube = self.radar_simulator.add_thermal_noise(radar_cube, SNR_dB=6)
+            doppler_fft = self.radar_pipeline.run(radar_cube)
+
+            # TODO do linear to dB here, before visualization
+            # TODO add normalization to [0,1] to output
+
+            # self.draw.draw(doppler_fft)
 
         if self.normalize:
             obs = self.normalize_obs(obs)
