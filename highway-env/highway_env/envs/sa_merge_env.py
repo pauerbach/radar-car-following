@@ -39,7 +39,7 @@ class SingleAgentMergeEnv(AbstractEnv):
                     "type": "Radar",
                     "discretice": True,
                     "normalize": True,
-                    "dist_only": True,
+                    "dist_only": False,
                     "use_radar_simulation": True,
                 },
                 "use_ros": False,

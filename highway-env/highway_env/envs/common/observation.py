@@ -115,9 +115,9 @@ class RadarSimulator:
         lambda_radar = c / fc
         v_max = lambda_radar / (4 * T_chirp)
         v_res = lambda_radar / (2 * n_chirp * T_chirp)
-        print(
-            f"Range resolution: {range_res:.2f} m, Max range: {max_range:.2f} m, Max velocity: {v_max:.2f} m/s, Vel resolution: {v_res:.2f}"
-        )
+        # print(
+        #     f"Range resolution: {range_res:.2f} m, Max range: {max_range:.2f} m, Max velocity: {v_max:.2f} m/s, Vel resolution: {v_res:.2f}"
+        # )
 
     def get_max_range(self):
         range_res = c / (2 * self.B)
@@ -484,13 +484,13 @@ class RadarObservation(ObservationType):
 
     def space(self) -> spaces.Space:
         if self.dist_only:
-            return spaces.Box(shape=(3,), low=0, high=255, dtype=np.uint8)
+            return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float64)
         elif self.use_radar_simulation:
             return spaces.Box(
-                shape=(self.N_r, self.N_c * 2, 1),
+                shape=(1, self.N_r, self.N_c * 2),
                 low=0,
-                high=1,
-                dtype=np.float64,
+                high=255,
+                dtype=np.uint8,
             )
         else:
             return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float64)
@@ -501,6 +501,8 @@ class RadarObservation(ObservationType):
             maxmax = np.max(obs)
 
             obs = (obs - minmin) * 255 / (maxmax - minmin)
+
+            obs = obs[np.newaxis, ...]
 
             return obs.astype(np.uint8)
 
@@ -562,7 +564,7 @@ class RadarObservation(ObservationType):
 
         if self.dist_only:
             obs = np.array([dist, speed, self.observer_vehicle.speed])
-        else:
+        elif not self.use_radar_simulation:
             obs = np.array([x, y, speed, self.observer_vehicle.speed])
 
         if self.use_radar_simulation:

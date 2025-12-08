@@ -9,8 +9,13 @@ from stable_baselines3 import PPO
 # Parallel environments
 env = gym.make("merge-single-agent-v0")
 
+print("observation_space")
+print(env.observation_space)
+print()
+
 model = PPO(
-    "MlpPolicy",
+    # "MlpPolicy",
+    "CnnPolicy",
     env,
     verbose=1,
     # n_steps=int(1e6),
