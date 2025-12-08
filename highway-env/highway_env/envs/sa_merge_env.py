@@ -38,9 +38,9 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "observation": {
                     "type": "Radar",
                     "discretice": True,
-                    "normalize": False,
+                    "normalize": True,
                     "dist_only": True,
-                    "use_radar_simulation": False,
+                    "use_radar_simulation": True,
                 },
                 "use_ros": False,
                 "leader_callback": None,

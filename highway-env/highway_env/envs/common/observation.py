@@ -76,11 +76,10 @@ class Draw:
 
     def draw(self, data):
         if self._is_window_open:
-            rd_map = 20 * np.log10(np.abs(np.average(data, 2)) + 1e-12)
             if self._h is None:  # handle the first run
-                self._draw_first_time(rd_map)
+                self._draw_first_time(data)
             else:
-                self._draw_next_time(rd_map)
+                self._draw_next_time(data)
 
             self._fig.canvas.draw_idle()
             self._fig.canvas.flush_events()
@@ -482,21 +481,12 @@ class RadarObservation(ObservationType):
                 fc, B, T_chirp, self.N_r, self.N_c, self.N_rx
             )
             self.radar_pipeline = RadarPipeline(self.N_rx, self.N_c, self.N_r)
-            max_range = self.radar_simulator.get_max_range()
-            max_doppler = self.radar_simulator.get_max_velocity()
-
-    #         self.draw = Draw(max_doppler, max_range)
-    #
-    # def __del__(self):
-    #     if self.use_radar_simulation:
-    #         self.draw.close()
 
     def space(self) -> spaces.Space:
         if self.dist_only:
-            return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float64)
+            return spaces.Box(shape=(3,), low=0, high=255, dtype=np.uint8)
         elif self.use_radar_simulation:
             return spaces.Box(
-                # shape=(self.N_r, self.N_c * 2, self.N_rx),
                 shape=(self.N_r, self.N_c * 2, 1),
                 low=0,
                 high=1,
@@ -506,6 +496,14 @@ class RadarObservation(ObservationType):
             return spaces.Box(shape=(4,), low=-1, high=1, dtype=np.float64)
 
     def normalize_obs(self, obs):
+        if self.use_radar_simulation:
+            minmin = np.min(obs)
+            maxmax = np.max(obs)
+
+            obs = (obs - minmin) * 255 / (maxmax - minmin)
+
+            return obs.astype(np.uint8)
+
         # relative x position of leader to ego vehicle
         obs[0] = utils.lmap(obs[0], [0.0, 1.0], [-1, 1])
 
@@ -577,11 +575,7 @@ class RadarObservation(ObservationType):
             radar_cube = self.radar_simulator.simulate_radar(target)
             radar_cube = self.radar_simulator.add_thermal_noise(radar_cube, SNR_dB=6)
             doppler_fft = self.radar_pipeline.run(radar_cube)
-
-            # TODO do linear to dB here, before visualization
-            # TODO add normalization to [0,1] to output
-
-            # self.draw.draw(doppler_fft)
+            obs = 20 * np.log10(np.abs(np.average(doppler_fft, 2)) + 1e-12)
 
         if self.normalize:
             obs = self.normalize_obs(obs)
