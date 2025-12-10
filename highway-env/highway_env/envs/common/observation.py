@@ -252,12 +252,12 @@ class RadarSimulator:
                     )
 
                     # add zero distance clutter
-                    #radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
-                        #1j * (2 * np.pi * f_b_clutter * t + phase_doppler + 0)
-                    #)
-                    #radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
-                        #1j * (2 * np.pi * f_b_clutter * t + -phase_doppler + 0)
-                    #)
+                    # radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
+                    # 1j * (2 * np.pi * f_b_clutter * t + phase_doppler + 0)
+                    # )
+                    # radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
+                    # 1j * (2 * np.pi * f_b_clutter * t + -phase_doppler + 0)
+                    # )
         return radar_cube
 
 
@@ -485,7 +485,7 @@ class RadarObservation(ObservationType):
     def space(self) -> spaces.Space:
         if self.dist_only:
             return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float64)
-            #return spaces.Box(shape=(2,), low=-1, high=1, dtype=np.float64)
+            # return spaces.Box(shape=(2,), low=-1, high=1, dtype=np.float64)
         elif self.use_radar_simulation:
             return spaces.Box(
                 shape=(1, self.N_r, self.N_c * 2),
@@ -565,7 +565,7 @@ class RadarObservation(ObservationType):
 
         if self.dist_only:
             obs = np.array([dist, speed, self.observer_vehicle.speed])
-            #obs = np.array([dist, speed])
+            # obs = np.array([dist, speed])
         elif not self.use_radar_simulation:
             obs = np.array([x, y, speed, self.observer_vehicle.speed])
 
