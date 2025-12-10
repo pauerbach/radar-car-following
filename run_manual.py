@@ -20,12 +20,12 @@ for _ in range(num_runs):
     # action = env.action_space.sample()
     action = 0.0
     obs, reward, done, _, info = env.step(action)
-    draw.draw(obs)
+    #draw.draw(obs)
 
     if done:
         env.reset()
 
-    env.render()
-    time.sleep(1 / env.unwrapped.config["policy_frequency"])
+    #env.render()
+    #time.sleep(1 / env.unwrapped.config["policy_frequency"])
 
 print(f"Took {(time.time()-start)/num_runs} s")

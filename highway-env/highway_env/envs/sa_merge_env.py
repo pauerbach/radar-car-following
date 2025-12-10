@@ -52,8 +52,8 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "simulation_frequency": 10,  # [Hz]
                 "scaling": 320.76,
                 "centering_position": [0.8, -0.6],
-                # "termination_headway": 2.5,  # [m]
-                "termination_headway": 4.5,  # [m]
+                #"termination_headway": 4.5,  # [m]
+                "termination_headway": 1.8,  # [m]
                 "speed_reward_weight": 2.0,
                 "gap_reward_weight": 0.5,
                 "jerk_reward_weight": 0.004,
