@@ -57,7 +57,12 @@ class Draw:
             data,
             vmin=minmin,
             vmax=maxmax,
-            extent=(-self._max_speed_m_s, self._max_speed_m_s, 0, self._max_range_m),
+            extent=(
+                -self._max_speed_m_s,
+                self._max_speed_m_s,
+                0,
+                self._max_range_m / 2,
+            ),
             aspect="auto",
             origin="lower",
         )
@@ -471,9 +476,9 @@ class RadarObservation(ObservationType):
         if self.use_radar_simulation:
             # FMCW waveform
             fc = 60.75e9  # Carrier frequency (Hz)
-            B = 5.5e9  # Bandwidth (Hz)
-            T_chirp = 0.000591125  # Chirp duration (s)
-            self.N_r = 64  # Number of range samples per chirp
+            B = 5.36e9  # Bandwidth (Hz)
+            T_chirp = 0.00123371  # Chirp duration (s)
+            self.N_r = 128  # Number of range samples per chirp
             self.N_c = 32  # Number of chirps (for Doppler)
             self.N_rx = 3  # number of receive antennas (ULA)
 
