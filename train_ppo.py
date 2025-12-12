@@ -61,7 +61,7 @@ def init_callbacks(env, log_folder):
     eval_callback = EvalCallback(
         env,
         best_model_save_path=f"{log_folder}/best_model",
-        log_path="{log_folder}/results",
+        # log_path=f"{log_folder}/results",
         eval_freq=10000,
     )
 
