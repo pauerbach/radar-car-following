@@ -13,7 +13,9 @@ from stable_baselines3.common.callbacks import CallbackList, EvalCallback
 import wandb
 from wandb.integration.sb3 import WandbCallback
 
-seed = 42
+import hydra
+from hydra.utils import get_original_cwd, to_absolute_path
+import omegaconf
 
 
 def now_str():
@@ -26,21 +28,31 @@ def init_seeding(seed):
 
 
 def init_log_folder():
-    log_folder = os.path.join("logs", now_str())
+    log_folder = os.path.join(f"{to_absolute_path('logs')}", now_str())
     os.makedirs(log_folder, exist_ok=True)
-    os.system(f"cp -r ./highway-env/ {log_folder}")
+    os.system(f"cp -r {to_absolute_path('highway-env')}/ {log_folder}")
+    os.system(f"cp  {to_absolute_path('config.yaml')} {log_folder}")
 
     return log_folder
 
 
-def init_logging(log_folder):
+def init_logging(log_folder, cfg):
     run = wandb.init(
         project="car-following-env",
         name=log_folder,
-        # config=config,
+        config=omegaconf.OmegaConf.to_container(
+            cfg, resolve=True, throw_on_missing=True
+        ),
         sync_tensorboard=True,
         save_code=True,
     )
+    artifact = wandb.run.log_code(
+        f"{to_absolute_path('highway-env')}",
+        name="Simulation_Code",
+        include_fn=lambda path: path.endswith(".py") or path.endswith(".pyx"),
+    )
+    artifact.wait()
+    wandb.run.use_artifact(artifact, type="code")
 
     return run
 
@@ -53,35 +65,30 @@ def init_callbacks(env, log_folder):
         eval_freq=10000,
     )
 
-    wandb_callback = WandbCallback(
-        # gradient_save_freq=100,
-        # model_save_path=f"models/{run.id}",
-        verbose=2
-    )
+    wandb_callback = WandbCallback(verbose=2)
 
     callback = CallbackList([eval_callback, wandb_callback])
 
     return callback
 
 
-def init_agent(env, log_folder):
+def init_agent(env, log_folder, cfg, seed):
     policy_kwargs = dict(
-        features_extractor_kwargs=dict(features_dim=512),
+        features_extractor_kwargs=dict(features_dim=cfg.features_dim),
     )
 
     model = PPO(
-        # "MlpPolicy",
-        "CnnPolicy",
+        cfg.policy,
         env,
         policy_kwargs=policy_kwargs,
         verbose=1,
-        learning_rate=5e-4,
-        gamma=0.99,
-        vf_coef=0.5,
-        clip_range=0.2,
-        gae_lambda=0.95,
-        n_epochs=10,
-        batch_size=64,
+        learning_rate=cfg.learning_rate,
+        gamma=cfg.gamma,
+        vf_coef=cfg.vf_coef,
+        clip_range=cfg.clip_range,
+        gae_lambda=cfg.gae_lambda,
+        n_epochs=cfg.n_epochs,
+        batch_size=cfg.batch_size,
         tensorboard_log=f"{log_folder}",
         seed=seed,
     )
@@ -89,17 +96,26 @@ def init_agent(env, log_folder):
     return model
 
 
-def main():
-    init_seeding(seed)
+@hydra.main(version_base="1.1", config_path=".", config_name="config")
+def main(cfg: "DictConfig"):
+    print(cfg)
+    print(os.getcwd())
+    init_seeding(cfg.seed)
     log_folder = init_log_folder()
-    wandb_run = init_logging(log_folder)
+    wandb_run = init_logging(log_folder, cfg)
 
-    env = gym.make("merge-single-agent-v0")
+    env_cfg = omegaconf.OmegaConf.to_container(
+        cfg.env, resolve=True, throw_on_missing=True
+    )
+    env = gym.make("merge-single-agent-v0", config=env_cfg)
 
-    model = init_agent(env, log_folder)
-    callback = init_callbacks(env, log_folder)
+    model = init_agent(env, log_folder, cfg.train, cfg.seed)
+    callback = init_callbacks(
+        env,
+        log_folder,
+    )
 
-    model.learn(total_timesteps=1e6, callback=callback)
+    model.learn(total_timesteps=cfg.train.total_timesteps, callback=callback)
     model.save(f"{log_folder}/model.zip")
 
     wandb_run.finish()
