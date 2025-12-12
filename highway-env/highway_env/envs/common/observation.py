@@ -101,7 +101,7 @@ class Draw:
 
 
 class RadarSimulator:
-    def __init__(self, fc, B, T_chirp, n_samples, n_chirp, n_rx):
+    def __init__(self, fc, B, T_chirp, n_samples, n_chirp, n_rx, add_zero_noise):
         # ----------------------------
         # FMCW waveform
         # ----------------------------
@@ -111,6 +111,8 @@ class RadarSimulator:
         self.n_samples = n_samples  # Number of range samples per chirp
         self.n_chirp = n_chirp  # Number of chirps (for Doppler)
         self.n_rx = n_rx  # number or receive antennas (ULA)
+
+        self.add_zero_noise = add_zero_noise
 
         # ----------------------------
         # Derived parameters
@@ -158,10 +160,11 @@ class RadarSimulator:
             self.n_samples,
             self.n_chirp,
             self.n_rx,
+            self.add_zero_noise,
         )
 
     @jit(nopython=True, parallel=True, fastmath=False)
-    def _simulate_radar(target, fc, B, T_chirp, N_r, N_c, N_rx):
+    def _simulate_radar(target, fc, B, T_chirp, N_r, N_c, N_rx, add_zero_noise):
         c = 3e8  # Speed of light (m/s)
 
         # Derived parameters
@@ -256,13 +259,14 @@ class RadarSimulator:
                         )
                     )
 
-                    # add zero distance clutter
-                    # radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
-                    # 1j * (2 * np.pi * f_b_clutter * t + phase_doppler + 0)
-                    # )
-                    # radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
-                    # 1j * (2 * np.pi * f_b_clutter * t + -phase_doppler + 0)
-                    # )
+                    if add_zero_noise:
+                        # add zero distance clutter
+                        radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
+                            1j * (2 * np.pi * f_b_clutter * t + phase_doppler + 0)
+                        )
+                        radar_cube[:, n_c, n_rx] += sensor_clutter_rcs * np.exp(
+                            1j * (2 * np.pi * f_b_clutter * t + -phase_doppler + 0)
+                        )
         return radar_cube
 
 
@@ -475,17 +479,34 @@ class RadarObservation(ObservationType):
 
         if self.use_radar_simulation:
             # FMCW waveform
-            fc = 60.75e9  # Carrier frequency (Hz)
-            B = 5.36e9  # Bandwidth (Hz)
-            T_chirp = 0.00123371  # Chirp duration (s)
-            self.N_r = 128  # Number of range samples per chirp
-            self.N_c = 32  # Number of chirps (for Doppler)
-            self.N_rx = 3  # number of receive antennas (ULA)
+            fc = kwargs["fc"]  # Carrier frequency (Hz)
+            B = kwargs["B"]  # Bandwidth (Hz)
+            # B = 5.56e9  # Bandwidth (Hz)
+            T_chirp = kwargs["T_chirp"]  # Chirp duration (s)
+            # T_chirp = 0.000591125  # Chirp duration (s)
+            # self.N_r = 128  # Number of range samples per chirp
+            self.N_r = kwargs["N_r"]  # Number of range samples per chirp
+            self.N_c = kwargs["N_c"]  # Number of chirps (for Doppler)
+            self.N_rx = kwargs["N_rx"]  # number of receive antennas (ULA)
+
+            self.add_zero_noise = True
+
+            self.thermal_noise_snr = kwargs["thermal_noise_snr"]
 
             self.radar_simulator = RadarSimulator(
-                fc, B, T_chirp, self.N_r, self.N_c, self.N_rx
+                fc,
+                B,
+                T_chirp,
+                self.N_r,
+                self.N_c,
+                self.N_rx,
+                self.add_zero_noise,
             )
-            self.radar_pipeline = RadarPipeline(self.N_rx, self.N_c, self.N_r)
+            self.radar_pipeline = RadarPipeline(
+                self.N_rx,
+                self.N_c,
+                self.N_r,
+            )
 
     def space(self) -> spaces.Space:
         if self.dist_only:
@@ -575,6 +596,7 @@ class RadarObservation(ObservationType):
             obs = np.array([x, y, speed, self.observer_vehicle.speed])
 
         if self.use_radar_simulation:
+            # print(dist)
             target = [
                 dist,
                 speed,
@@ -582,7 +604,9 @@ class RadarObservation(ObservationType):
                 0.9,
             ]  # TODO calculate angle and make RCS a parameter
             radar_cube = self.radar_simulator.simulate_radar(target)
-            radar_cube = self.radar_simulator.add_thermal_noise(radar_cube, SNR_dB=6)
+            radar_cube = self.radar_simulator.add_thermal_noise(
+                radar_cube, SNR_dB=self.thermal_noise_snr
+            )
             doppler_fft = self.radar_pipeline.run(radar_cube)
             obs = 20 * np.log10(np.abs(np.average(doppler_fft, 2)) + 1e-12)
 
