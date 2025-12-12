@@ -1,0 +1,55 @@
+
+# needed to not change the cwd but stay in current folder
+hydra:
+  job:
+    chdir: False
+
+seed: 42
+cuda: 1
+env:
+  observation:
+      type: "Radar"
+      discretice: True
+      normalize: True
+      dist_only: False
+      use_radar_simulation: True
+      fc: 60.75e9
+      B: 5.36e9
+      T_chirp: 0.00123371
+      N_r: 64
+      N_c: 32
+      N_rx: 3
+      zero_noise: True
+      thermal_noise_snr: 6
+  action:
+      type: "ContinousSteering"
+      add_noise: True
+  use_ros: False
+  leader_callback: None
+  ego_callback: None
+  duration: 50  # time step
+  policy_frequency: 10  # [Hz]
+  simulation_frequency: 10  # [Hz]
+  scaling: 320.76
+  centering_position: [0.8, -0.6]
+  termination_headway: 1.8  # [m]
+  speed_reward_weight: 2.0
+  gap_reward_weight: 0.5
+  jerk_reward_weight: 0.004
+  minimum_gap: 2
+  desired_time_gap: 1.5
+  upper_time_gap: 10
+  safety_weight: 0.5
+  effiency_weight: 0.8
+train:
+    total_timesteps: 1e6
+    features_dim: 512
+    policy: "CnnPolicy"
+    learning_rate: 5e-4
+    gamma: 0.99
+    vf_coef: 0.5
+    clip_range: 0.2
+    gae_lambda: 0.95
+    n_epochs: 10
+    batch_size: 64
+
