@@ -1,6 +1,7 @@
 # import os
 from setuptools import setup
 from Cython.Build import cythonize
+import numpy
 
 # os.environ['CFLAGS'] = '-O3 -Wall -std=c++11 -ffast-math'
 
@@ -16,4 +17,5 @@ setup(
         # compiler_directives={'embedsignature': True},
         annotate=True,
     ),
+    include_dirs=[numpy.get_include()]
 )

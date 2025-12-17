@@ -42,14 +42,14 @@ env:
   safety_weight: 0.5
   effiency_weight: 0.8
 train:
-    total_timesteps: 1e6
-    features_dim: 512
+    total_timesteps: 10e6
+    features_dim: 128
     policy: "CnnPolicy"
-    learning_rate: 5e-4
+    learning_rate: 5e-5
     gamma: 0.99
     vf_coef: 0.5
-    clip_range: 0.2
+    clip_range: 0.1
     gae_lambda: 0.95
-    n_epochs: 10
-    batch_size: 64
+    n_epochs: 4
+    batch_size: 256
 

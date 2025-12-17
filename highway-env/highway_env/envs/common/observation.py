@@ -3,11 +3,11 @@ from gymnasium import spaces
 import gymnasium as gym
 
 # gym.logger.set_level(40)
+# import pyfftw
 import numpy as np
 import pandas as pd
 from scipy import signal
 from numba import jit, complex64, prange
-import pyfftw
 import matplotlib.pyplot as plt
 
 from highway_env import utils
@@ -287,30 +287,30 @@ class RadarPipeline:
         # pyfftw.interfaces.cache.set_keepalive_time(60)
 
         # Byte-aligned inputs are supposedly faster
-        radar_cube_shape = (num_samples * 2, num_chirps, num_rx)
-        range_in_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
-        range_out_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
-
-        range_cube_shape = (num_samples, num_chirps * 2, num_rx)
-        doppler_in_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
-        doppler_out_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
-
-        self.range_fftw_object = pyfftw.FFTW(
-            range_in_array,
-            range_out_array,
-            axes=(0,),
-            direction="FFTW_FORWARD",
-            flags=("FFTW_ESTIMATE",),
-            threads=1,
-        )
-        self.doppler_fftw_object = pyfftw.FFTW(
-            doppler_in_array,
-            doppler_out_array,
-            axes=(1,),
-            direction="FFTW_FORWARD",
-            flags=("FFTW_ESTIMATE",),
-            threads=1,
-        )
+        # radar_cube_shape = (num_samples * 2, num_chirps, num_rx)
+        # range_in_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
+        # range_out_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
+        #
+        # range_cube_shape = (num_samples, num_chirps * 2, num_rx)
+        # doppler_in_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
+        # doppler_out_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
+        #
+        # self.range_fftw_object = pyfftw.FFTW(
+        #     range_in_array,
+        #     range_out_array,
+        #     axes=(0,),
+        #     direction="FFTW_FORWARD",
+        #     flags=("FFTW_ESTIMATE",),
+        #     threads=1,
+        # )
+        # self.doppler_fftw_object = pyfftw.FFTW(
+        #     doppler_in_array,
+        #     doppler_out_array,
+        #     axes=(1,),
+        #     direction="FFTW_FORWARD",
+        #     flags=("FFTW_ESTIMATE",),
+        #     threads=1,
+        # )
 
     def run(self, radar_cube):
         # ----------------------------
@@ -321,8 +321,8 @@ class RadarPipeline:
             radar_cube, ((0, self.num_samples), (0, 0), (0, 0)), "constant"
         )
 
-        # range_fft = np.fft.fft(radar_cube, axis=0) / N_r
-        range_fft = self.range_fftw_object(radar_cube)  # / N_r
+        range_fft = np.fft.fft(radar_cube, axis=0, norm="forward")  # / N_r
+        # range_fft = self.range_fftw_object(radar_cube)  # / N_r
         # range_fft = pyfftw.interfaces.numpy_fft.fft(radar_cube, axis=0) / N_r
 
         range_fft = 2 * range_fft[range(int(self.num_samples)), :, :]
@@ -335,8 +335,8 @@ class RadarPipeline:
             range_fft, ((0, 0), (0, self.num_chirps), (0, 0)), "constant"
         )
 
-        # doppler_fft = np.fft.fft(range_fft, axis=1) / N_c
-        doppler_fft = self.doppler_fftw_object(range_fft)  # / N_c
+        doppler_fft = np.fft.fft(range_fft, axis=1, norm="forward")  # / N_c
+        # doppler_fft = self.doppler_fftw_object(range_fft)  # / N_c
         # doppler_fft = pyfftw.interfaces.numpy_fft.fft(range_fft, axis=1) / N_c
         doppler_fft = np.fft.fftshift(doppler_fft, axes=1)
 

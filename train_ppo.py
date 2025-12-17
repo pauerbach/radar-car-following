@@ -17,6 +17,69 @@ import hydra
 from hydra.utils import get_original_cwd, to_absolute_path
 import omegaconf
 
+import torch
+import torch.nn as nn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+
+
+class RadarCNN64x64(BaseFeaturesExtractor):
+    """
+    Optimized CNN feature extractor for a 64x64 range–Doppler map
+    with a single magnitude channel.
+
+
+    Observation space:
+    Box(shape=(1, 64, 64))
+
+
+    Design principles:
+    - Exploit fixed spatial resolution (64x64)
+    - Aggressive early downsampling for stability
+    - Conservative capacity (single-target car following)
+    - LayerNorm instead of BatchNorm (on-policy PPO)
+    """
+
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 128):
+        super().__init__(observation_space, features_dim)
+
+        assert observation_space.shape == (1, 64, 64), (
+            "RadarCNN64x64 expects observation shape (1, 64, 64), "
+            f"got {observation_space.shape}"
+        )
+
+        # -----------------------------
+        # Convolutional backbone
+        # -----------------------------
+        self.cnn = nn.Sequential(
+            # (1, 64, 64) -> (16, 32, 32)
+            nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),
+            nn.LayerNorm([16, 32, 32]),
+            nn.ReLU(),
+            # (16, 32, 32) -> (32, 16, 16)
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
+            nn.LayerNorm([32, 16, 16]),
+            nn.ReLU(),
+            # (32, 16, 16) -> (64, 8, 8)
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.LayerNorm([64, 8, 8]),
+            nn.ReLU(),
+            # Preserve spatial structure but reduce sensitivity
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.LayerNorm([64, 8, 8]),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+
+        # Output of CNN is 64 * 8 * 8 = 4096
+        self.linear = nn.Sequential(
+            nn.Linear(4096, features_dim),
+            nn.LayerNorm(features_dim),
+            nn.ReLU(),
+        )
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        return self.linear(self.cnn(observations))
+
 
 def now_str():
     now = datetime.datetime.now(dateutil.tz.tzlocal())
@@ -74,6 +137,7 @@ def init_callbacks(env, log_folder):
 
 def init_agent(env, log_folder, cfg, seed):
     policy_kwargs = dict(
+        features_extractor_class=RadarCNN64x64,
         features_extractor_kwargs=dict(features_dim=cfg.features_dim),
     )
 
