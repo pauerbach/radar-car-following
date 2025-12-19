@@ -3,11 +3,11 @@ from gymnasium import spaces
 import gymnasium as gym
 
 # gym.logger.set_level(40)
-# import pyfftw
 import numpy as np
 import pandas as pd
 from scipy import signal
 from numba import jit, complex64, prange
+import pyfftw
 import matplotlib.pyplot as plt
 
 from highway_env import utils
@@ -152,7 +152,7 @@ class RadarSimulator:
         return radar_cube
 
     def simulate_radar(self, target):
-        return RadarSimulator._simulate_radar(
+        return RadarSimulator._simulate_radar_optimized(
             target,
             self.fc,
             self.B,
@@ -162,6 +162,111 @@ class RadarSimulator:
             self.n_rx,
             self.add_zero_noise,
         )
+
+    @jit(nopython=True, parallel=False, fastmath=False)
+    def _simulate_radar_optimized(
+        target, fc, B, T_chirp, N_r, N_c, N_rx, add_zero_noise
+    ):
+        # ----------------------------
+        # Internal Multipath Model for Corner Reflector
+        # ----------------------------
+        # Models multiple internal bounces between reflector plates
+        # producing delayed replicas (ghost peaks in range profile)
+        def corner_internal_reflections(R, base_amplitude, v_base, num_bounces=3):
+            """
+            Simulate multiple internal reflections in a moving trihedral corner reflector.
+            Each internal bounce adds:
+            - extra path length  -> shifted range
+            - small Doppler offset -> spectral spreading
+
+            Returns a list of (effective_range, amplitude_scale, effective_velocity)
+            """
+            reflections = [(R, base_amplitude, v_base)]
+
+            for i in range(1, num_bounces + 1):
+                # extra path due to internal reflection geometry (meters)
+                extra_path = (
+                    0.08 * i
+                )  # ~8cm per bounce #TODO make this a configurable parmater
+                effective_R = R + extra_path
+
+                # amplitude decay with each bounce
+                amp_scale = base_amplitude * (
+                    0.3**i
+                )  # TODO make this a configurable parmater
+
+                # each bounce creates a slight Doppler offset (micro-motion effect)
+                v_eff = v_base * (
+                    1 + 0.25 * i
+                )  # TODO make this a configurable parmater
+
+                reflections.append((effective_R, amp_scale, v_eff))
+
+            return reflections
+
+        c = 3e8
+
+        lambda_radar = c / fc
+        d = c / (2 * fc)
+
+        # Fast time & slow time
+        t = (np.arange(N_r, dtype=np.float32) / N_r) * T_chirp
+        chirps = np.arange(N_c, dtype=np.float32) * T_chirp
+
+        radar_cube = np.zeros((N_r, N_c, N_rx), dtype=complex64)
+
+        # Target parameters
+        R, v, angle_deg, RCS = target
+        angle_center = np.deg2rad(angle_deg)
+
+        # create internal multipath reflections (ghost ranges + Doppler spreads)
+        reflection_paths = corner_internal_reflections(R, RCS, v, num_bounces=2)
+
+        # Corner reflector multipath (fixed small count)
+        # reflection_paths = [(R, RCS, v),
+        #                     (R + 0.08, RCS * 0.3, v * 1.25),
+        #                     (R + 0.16, RCS * 0.09, v * 1.5)]
+
+        # Clutter
+        sensor_clutter_rcs = 0.2
+        sensor_range_base = 0.01
+        f_b_clutter = 2 * B * sensor_range_base / (c * T_chirp)
+        clutter_fast = np.exp(1j * (2 * np.pi * f_b_clutter * t))
+
+        # Precompute RX phase
+        rx_phase = np.empty(N_rx, dtype=complex64)
+        for n_rx in range(N_rx):
+            phase_angle = 2 * np.pi * n_rx * d * np.sin(angle_center) / lambda_radar
+            rx_phase[n_rx] = np.exp(1j * phase_angle)
+
+        for eff_R, eff_RCS, eff_v in reflection_paths:
+            f_b = 2 * B * eff_R / (c * T_chirp)
+            f_d = 2 * eff_v * fc / c
+
+            # Fast-time exponential (ONCE)
+            fast_phase = np.exp(1j * (2 * np.pi * f_b * t))
+
+            # Doppler slow-time phase (ONCE)
+            doppler_phase = np.exp(1j * (2 * np.pi * f_d * chirps))
+
+            for n_rx in range(N_rx):
+                rx_p = rx_phase[n_rx]
+
+                for n_c in range(N_c):
+                    dp = doppler_phase[n_c]
+
+                    radar_cube[:, n_c, n_rx] += eff_RCS * rx_p * dp * fast_phase
+
+                    if add_zero_noise:
+                        # clutter (both Doppler signs)
+                        radar_cube[:, n_c, n_rx] += (
+                            sensor_clutter_rcs * dp * clutter_fast
+                        )
+                        radar_cube[:, n_c, n_rx] += (
+                            sensor_clutter_rcs * np.conj(dp) * clutter_fast
+                        )
+
+        return radar_cube
 
     @jit(nopython=True, parallel=True, fastmath=False)
     def _simulate_radar(target, fc, B, T_chirp, N_r, N_c, N_rx, add_zero_noise):
@@ -276,71 +381,168 @@ class RadarPipeline:
         self.num_chirps = num_chirps
         self.num_samples = num_samples
 
-        self.range_window = signal.windows.blackmanharris(self.num_samples).reshape(
-            self.num_samples, 1, 1
-        )
-        self.doppler_window = signal.windows.blackmanharris(self.num_chirps).reshape(
-            1, self.num_chirps, 1
+        Nr = num_samples
+        Nc = num_chirps
+        Nd = 2 * Nc
+
+        # ----------------------------
+        # Windows (float32 for speed)
+        # ----------------------------
+        self.range_window = (
+            signal.windows.blackmanharris(Nr).astype(np.float32).reshape(Nr, 1, 1)
         )
 
-        # pyfftw.interfaces.cache.enable()
-        # pyfftw.interfaces.cache.set_keepalive_time(60)
+        self.doppler_window = (
+            signal.windows.blackmanharris(Nc).astype(np.float32).reshape(1, Nc, 1)
+        )
 
-        # Byte-aligned inputs are supposedly faster
-        # radar_cube_shape = (num_samples * 2, num_chirps, num_rx)
-        # range_in_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
-        # range_out_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
-        #
-        # range_cube_shape = (num_samples, num_chirps * 2, num_rx)
-        # doppler_in_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
-        # doppler_out_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
-        #
-        # self.range_fftw_object = pyfftw.FFTW(
-        #     range_in_array,
-        #     range_out_array,
-        #     axes=(0,),
-        #     direction="FFTW_FORWARD",
-        #     flags=("FFTW_ESTIMATE",),
-        #     threads=1,
-        # )
-        # self.doppler_fftw_object = pyfftw.FFTW(
-        #     doppler_in_array,
-        #     doppler_out_array,
-        #     axes=(1,),
-        #     direction="FFTW_FORWARD",
-        #     flags=("FFTW_ESTIMATE",),
-        #     threads=1,
-        # )
+        self.range_in = pyfftw.empty_aligned((2 * Nr, Nc, num_rx), dtype=np.float32)
+
+        # rfft output shape: N//2 + 1 = Nr + 1
+        self.range_out = pyfftw.empty_aligned((Nr + 1, Nc, num_rx), dtype=np.complex64)
+
+        # ---------- Doppler FFT (complex -> complex) ----------
+        self.doppler_in = pyfftw.empty_aligned(
+            (Nr + 1, 2 * Nc, num_rx), dtype=np.complex64
+        )
+
+        self.doppler_out = pyfftw.empty_aligned(
+            (Nr + 1, 2 * Nc, num_rx), dtype=np.complex64
+        )
+
+        # ==========================================================
+        # FFTW plans (created ONCE)
+        # ==========================================================
+
+        # Range FFT: real -> complex
+        self.range_fft_plan = pyfftw.FFTW(
+            self.range_in,
+            self.range_out,
+            axes=(0,),
+            direction="FFTW_FORWARD",
+            flags=("FFTW_MEASURE",),
+            threads=1,
+        )
+
+        # Doppler FFT: complex -> complex
+        self.doppler_fft_plan = pyfftw.FFTW(
+            self.doppler_in,
+            self.doppler_out,
+            axes=(1,),
+            direction="FFTW_FORWARD",
+            flags=("FFTW_MEASURE",),
+            threads=1,
+        )
+
+        # ==========================================================
+        # Doppler index remap (no fftshift)
+        # ==========================================================
+        self.doppler_index = (np.arange(Nd) + Nd // 2) % Nd
 
     def run(self, radar_cube):
-        # ----------------------------
-        # Range FFT
-        # ----------------------------
-        radar_cube = np.multiply(radar_cube, self.range_window)
-        radar_cube = np.pad(
-            radar_cube, ((0, self.num_samples), (0, 0), (0, 0)), "constant"
-        )
+        Nr = self.num_samples
+        Nc = self.num_chirps
 
-        range_fft = np.fft.fft(radar_cube, axis=0, norm="forward")  # / N_r
-        # range_fft = self.range_fftw_object(radar_cube)  # / N_r
-        # range_fft = pyfftw.interfaces.numpy_fft.fft(radar_cube, axis=0) / N_r
+        # ==========================================================
+        # Range FFT (REAL)
+        # ==========================================================
 
-        range_fft = 2 * range_fft[range(int(self.num_samples)), :, :]
+        radar_real = radar_cube.real.astype(np.float32, copy=False)
 
-        # ----------------------------
-        # Doppler FFT
-        # ----------------------------
-        range_fft = np.multiply(range_fft, self.doppler_window)
-        range_fft = np.pad(
-            range_fft, ((0, 0), (0, self.num_chirps), (0, 0)), "constant"
-        )
+        # Zero padding
+        self.range_in[Nr:, :, :] = 0.0
 
-        doppler_fft = np.fft.fft(range_fft, axis=1, norm="forward")  # / N_c
-        # doppler_fft = self.doppler_fftw_object(range_fft)  # / N_c
-        # doppler_fft = pyfftw.interfaces.numpy_fft.fft(range_fft, axis=1) / N_c
-        doppler_fft = np.fft.fftshift(doppler_fft, axes=1)
+        # Window + copy (no temporaries)
+        np.multiply(radar_real, self.range_window, out=self.range_in[:Nr, :, :])
 
-        return doppler_fft
+        # Execute FFTW plan (in-place)
+        self.range_fft_plan()
+
+        # ==========================================================
+        # Doppler FFT (COMPLEX)
+        # ==========================================================
+
+        self.doppler_in[:, Nc:, :] = 0.0
+
+        np.multiply(self.range_out, self.doppler_window, out=self.doppler_in[:, :Nc, :])
+
+        self.doppler_fft_plan()
+
+        return np.abs(self.doppler_out[:, self.doppler_index, :])
+
+
+# class RadarPipeline:
+#     def __init__(self, num_rx, num_chirps, num_samples):
+#         self.num_rx = num_rx
+#         self.num_chirps = num_chirps
+#         self.num_samples = num_samples
+#
+#         self.range_window = signal.windows.blackmanharris(self.num_samples).reshape(
+#             self.num_samples, 1, 1
+#         )
+#         self.doppler_window = signal.windows.blackmanharris(self.num_chirps).reshape(
+#             1, self.num_chirps, 1
+#         )
+#
+#         # pyfftw.interfaces.cache.enable()
+#         # pyfftw.interfaces.cache.set_keepalive_time(60)
+#
+#         # Byte-aligned inputs are supposedly faster
+#         # radar_cube_shape = (num_samples * 2, num_chirps, num_rx)
+#         # range_in_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
+#         # range_out_array = pyfftw.empty_aligned(radar_cube_shape, dtype=np.complex128)
+#         #
+#         # range_cube_shape = (num_samples, num_chirps * 2, num_rx)
+#         # doppler_in_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
+#         # doppler_out_array = pyfftw.empty_aligned(range_cube_shape, dtype=np.complex128)
+#         #
+#         # self.range_fftw_object = pyfftw.FFTW(
+#         #     range_in_array,
+#         #     range_out_array,
+#         #     axes=(0,),
+#         #     direction="FFTW_FORWARD",
+#         #     flags=("FFTW_ESTIMATE",),
+#         #     threads=1,
+#         # )
+#         # self.doppler_fftw_object = pyfftw.FFTW(
+#         #     doppler_in_array,
+#         #     doppler_out_array,
+#         #     axes=(1,),
+#         #     direction="FFTW_FORWARD",
+#         #     flags=("FFTW_ESTIMATE",),
+#         #     threads=1,
+#         # )
+#
+#     def run(self, radar_cube):
+#         # ----------------------------
+#         # Range FFT
+#         # ----------------------------
+#         radar_cube = np.multiply(radar_cube, self.range_window)
+#         radar_cube = np.pad(
+#             radar_cube, ((0, self.num_samples), (0, 0), (0, 0)), "constant"
+#         )
+#
+#         range_fft = np.fft.fft(radar_cube, axis=0, norm="forward")  # / N_r
+#         # range_fft = self.range_fftw_object(radar_cube)  # / N_r
+#         # range_fft = pyfftw.interfaces.numpy_fft.fft(radar_cube, axis=0) / N_r
+#
+#         range_fft = 2 * range_fft[range(int(self.num_samples)), :, :]
+#
+#         # ----------------------------
+#         # Doppler FFT
+#         # ----------------------------
+#         range_fft = np.multiply(range_fft, self.doppler_window)
+#         range_fft = np.pad(
+#             range_fft, ((0, 0), (0, self.num_chirps), (0, 0)), "constant"
+#         )
+#
+#         doppler_fft = np.fft.fft(range_fft, axis=1, norm="forward")  # / N_c
+#         # doppler_fft = self.doppler_fftw_object(range_fft)  # / N_c
+#         # doppler_fft = pyfftw.interfaces.numpy_fft.fft(range_fft, axis=1) / N_c
+#         doppler_fft = np.fft.fftshift(doppler_fft, axes=1)
+#
+#         return doppler_fft
+#
 
 
 class ObservationType(object):
@@ -611,7 +813,7 @@ class RadarObservation(ObservationType):
             obs = 20 * np.log10(np.abs(np.average(doppler_fft, 2)) + 1e-12)
 
         if self.normalize:
-            obs = self.normalize_obs(obs)
+            obs = self.normalize_obs(obs[:-1, :])
 
         return obs
 
