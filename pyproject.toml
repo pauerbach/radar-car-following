@@ -45,6 +45,8 @@ compilers = ">=1.11.0,<2"
 pkg-config = ">=0.29.2,<0.30"
 cmake = ">=4.2.1,<5"
 ninja = ">=1.13.2,<2"
+grad-cam = ">=1.5.5,<2"
+seaborn = ">=0.13.2,<0.14"
 
 [tool.pixi.feature.gpu.system-requirements]
 cuda = "12.0"

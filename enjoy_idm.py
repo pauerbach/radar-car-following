@@ -15,7 +15,11 @@ seed = 72
 
 np.random.seed(seed)
 
-env = gym.make("merge-single-agent-v0")
+config = {
+    "action": {"type": "IDM"},
+    "observation": {"type": "Kinematics"},
+}
+env = gym.make("merge-single-agent-v0", config=config)
 
 num_runs = 50000
 
@@ -26,20 +30,22 @@ dists = []
 crashes = 0
 episodes = 0
 
-max_range = env.unwrapped.observation_type.radar_simulator.get_max_range()
-max_doppler = env.unwrapped.observation_type.radar_simulator.get_max_velocity()
-draw = Draw(max_doppler, max_range)
+# max_range = env.unwrapped.observation_type.radar_simulator.get_max_range()
+# max_doppler = env.unwrapped.observation_type.radar_simulator.get_max_velocity()
+# draw = Draw(max_doppler, max_range)
 
 t = tqdm(range(num_runs))
 obs, _ = env.reset()
 
-model = PPO.load("./logs/01-09:15-11:21.25/best_model/best_model.zip")
+# model = PPO.load("./logs/01-09:15-11:21.25/best_model/best_model.zip")
+
 
 for i in t:
-    action, _ = model.predict(obs, deterministic=True)
+    # action, _ = model.predict(obs, deterministic=True)
+    action = 0
     obs, reward, done, _, info = env.step(action)
-    draw.draw(obs[0, :, :])
-    leader_speeds.append(info["leader_speed"])
+    # draw.draw(obs[0, :, :])
+    # leader_speeds.append(info["leader_speed"])
 
     ttcs.append(info["ttc"])
     headways.append(info["headway"])
@@ -48,15 +54,12 @@ for i in t:
         if info["crashed"]:
             crashes += 1
         obs, _ = env.reset()
-    env.render()
-    time.sleep(0.016)
+    # env.render()
+    # time.sleep(0.16)
     t.set_description(f"Crashes {crashes} Episodes: {episodes}")
 
 print(f"Crashes: {crashes}")
 
 # np.save("results/leader_speeds.npy", np.array(leader_speeds))
-# np.save("results/ttc_radar_path_loss_with_ground_clutter_best.npy", np.array(ttcs))
-# np.save(
-#     "results/headway_radar_path_loss_with_ground_clutter_best.npy", np.array(headways)
-# )
-# np.save("results/dists_dist_only.npy", np.array(headways))
+np.save("results/ttc_idm3.npy", np.array(ttcs))
+np.save("results/headway_idm3.npy", np.array(headways))
