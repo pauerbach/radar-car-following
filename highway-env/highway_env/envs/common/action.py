@@ -7,7 +7,7 @@ from highway_env import utils
 # from highway_env.vehicle.dynamics import BicycleVehicle
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.controller import MDPVehicle, SteeringMDPVehicle
-from highway_env.vehicle.behavior import IDMVehicle
+from highway_env.vehicle.behavior import IDMVehicle, ModelIDMVehicle
 
 if TYPE_CHECKING:
     from highway_env.envs.common.abstract import AbstractEnv
@@ -273,7 +273,7 @@ class IDMDummy(ActionType):
 
     @property
     def vehicle_class(self) -> Callable:
-        return IDMVehicle
+        return ModelIDMVehicle
 
     def act(self, action: int) -> None:
         self.controlled_vehicle.act()

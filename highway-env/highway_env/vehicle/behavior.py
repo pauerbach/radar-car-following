@@ -2,7 +2,6 @@ from typing import Tuple, Union
 
 import numpy as np
 
-from highway_env.road import lane
 from highway_env.road.road import Road, Route, LaneIndex
 from highway_env.types import Vector
 from highway_env.vehicle.controller import ControlledVehicle
@@ -26,15 +25,12 @@ class IDMVehicle(ControlledVehicle):
     DEACC_MAX = -10.0  # [m/s2]
     # Desired maximum acceleration.
     COMFORT_ACC_MAX = 3.0  # [m/s2]
-    # COMFORT_ACC_MAX = 0.3  # [m/s2]
     # Desired maximum deceleration.
     COMFORT_ACC_MIN = -5.0  # [m/s2]
-    # COMFORT_ACC_MIN = -3.0  # [m/s2]
     # Desired jam distance to the front vehicle.
     DISTANCE_WANTED = 5.0 + ControlledVehicle.LENGTH  # [m]
     # Desired time gap to the front vehicle.
     TIME_WANTED = 1.5  # [s]
-    # TIME_WANTED = 1.7  # [s]
     # Exponent of the velocity term.
     DELTA = 4.0  # []
 
@@ -42,8 +38,6 @@ class IDMVehicle(ControlledVehicle):
     POLITENESS = 0.0  # in [0, 1]
     LANE_CHANGE_MIN_ACC_GAIN = 0.1  # [m/s2]
     LANE_CHANGE_MAX_BRAKING_IMPOSED = 9.0  # [m/s2]
-    # LANE_CHANGE_MAX_BRAKING_IMPOSED = 40.0  # [m/s2]
-    # LANE_CHANGE_MAX_BRAKING_IMPOSED = 1.0  # [m/s2]
     LANE_CHANGE_DELAY = 1.0  # [s]
     RIGHT_BIAS = 0.0  # bias for lane changes to the right
 
@@ -376,29 +370,38 @@ class ModelIDMVehicle(IDMVehicle):
         lane = road.network.get_lane(lane_indx)
         heading = lane.heading_at(lane.local_coordinates(position)[0])
 
+        target_speed = 1.0
+
         super().__init__(
             road, position, heading, speed, target_lane_index, target_speed, route
         )
         self.enable_lane_change = enable_lane_change
 
-        # self.TAU_DS = 0.05  # [s]
+        self.id = 11
+
+        self.WIDTH = 0.08
+        self.LENGTH = 0.17
+        self.LENGTH_SQUARE = self.LENGTH**2  # Nedded for faster distance comparison
+
+        # Steering control
         self.TAU_DS = 0.2  # [s]
         self.PURSUIT_TAU = 0.5 * self.TAU_DS  # [s]
         self.KP_HEADING = 1 / self.TAU_DS
         self.KP_LATERAL = 1 / 3 * self.KP_HEADING  # [1/s]
-        self.WIDTH = 0.08
-        self.LENGTH = 0.17
-        self.LENGTH_SQUARE = self.LENGTH**2  # Nedded for faster distance comparison
-        self.DISTANCE_WANTED = 0.4
-        self.id = 0
-        # self.MAX_STEERING_ANGLE = np.deg2rad(20)
         self.MAX_STEERING_ANGLE = np.pi / 3
+
+        # IDM
+        self.DISTANCE_WANTED = 0.2
+        # self.TIME_WANTED = 1.0
+        self.TIME_WANTED = 0.85
+        self.COMFORT_ACC_MAX = 1.0  # [m/s2]
+
+        # MOBIL
         self.LANE_CHANGE_MIN_ACC_GAIN = 0.15  # [m/s2]
         self.LANE_CHANGE_MAX_BRAKING_IMPOSED = 10.0  # [m/s2]
-        # self.LANE_CHANGE_DELAY = 0.5  # [s]
-        self.ACC_MAX = 0.5  # [m/s2]
+
+        self.ACC_MAX = 1.0  # [m/s2]
         self.DEACC_MAX = -1.0  # [m/s2]
-        self.COMFORT_ACC_MAX = 3.0  # [m/s2]
 
 
 class RealModelVehicle(IDMVehicle):
@@ -748,12 +751,7 @@ class RandomVehicle(ControlledVehicle):
         as suggested in all car following papers of Ostap
         """
 
-        # if not utils.do_every(self.SPEED_CHANGE_DELAY, self.timer):
-        #     return
-        # self.timer = 0
-
         # calculate new OU value for speed
-        # dW = np.sqrt(self.SPEED_CHANGE_DELAY) * np.random.normal(0, 1)
         dW = np.sqrt(dt) * np.random.normal(0, 1)
         self.speed = (
             self.last_speed

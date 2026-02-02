@@ -100,6 +100,189 @@ class Draw:
         return self._is_window_open
 
 
+@jit(nopython=True, parallel=False, fastmath=False)
+def simulate_ground_clutter(
+    fc,
+    B,
+    T_chirp,
+    N_r,
+    N_c,
+    N_rx,
+    ego_velocity,
+    antenna_height=0.08,
+    R_min=0.02,
+    R_max=0.25,
+    n_scatterers=100,
+    clutter_power=0.05,
+    doppler_spread=0.1,
+):
+    """
+    Simulate distributed ground clutter for a forward-looking FMCW radar.
+    """
+
+    c = 3e8
+    lambda_radar = c / fc
+    d = c / (2 * fc)
+
+    t = (np.arange(N_r) / N_r) * T_chirp
+    chirps = np.arange(N_c) * T_chirp
+
+    clutter_cube = np.zeros((N_r, N_c, N_rx), dtype=np.complex64)
+
+    for _ in range(n_scatterers):
+        # Random ground scatterer range
+        R = np.random.uniform(R_min, R_max)
+
+        # Doppler centered at ego velocity with spread
+        v = ego_velocity + np.random.randn() * doppler_spread
+
+        # Beat and Doppler frequencies
+        f_b = 2 * B * R / (c * T_chirp)
+        f_d = 2 * v * fc / c
+
+        # Path loss and grazing angle attenuation
+        path_loss = clutter_power / (R**2 + antenna_height**2)
+
+        # Random phase
+        phi0 = np.random.uniform(0, 2 * np.pi)
+
+        fast_phase = np.exp(1j * (2 * np.pi * f_b * t + phi0))
+        doppler_phase = np.exp(1j * (2 * np.pi * f_d * chirps))
+
+        for rx in range(N_rx):
+            rx_phase = np.exp(1j * 2 * np.pi * rx * d / lambda_radar)
+            for c_idx in range(N_c):
+                clutter_cube[:, c_idx, rx] += (
+                    path_loss * rx_phase * doppler_phase[c_idx] * fast_phase
+                )
+
+    return clutter_cube
+
+
+@jit(nopython=True, parallel=False, fastmath=False)
+def simulate_ground_clutter_fast(
+    fc,
+    B,
+    T_chirp,
+    N_r,
+    N_c,
+    N_rx,
+    ego_velocity,
+    antenna_height=0.08,
+    R_min=0.02,
+    R_max=0.25,
+    n_scatterers=100,
+    clutter_power=0.05,
+    doppler_spread=0.1,
+):
+    c = 3e8
+    lambda_radar = c / fc
+    d = c / (2 * fc)
+
+    t = (np.arange(N_r) / N_r) * T_chirp  # (N_r,)
+    chirps = np.arange(N_c) * T_chirp  # (N_c,)
+    rx_idx = np.arange(N_rx)  # (N_rx,)
+
+    clutter_cube = np.zeros((N_r, N_c, N_rx), dtype=np.complex64)
+
+    for _ in range(n_scatterers):
+        R = np.random.uniform(R_min, R_max)
+        v = ego_velocity + np.random.randn() * doppler_spread
+
+        f_b = 2 * B * R / (c * T_chirp)
+        f_d = 2 * v * fc / c
+
+        path_loss = clutter_power / (R**2 + antenna_height**2)
+        phi0 = np.random.uniform(0, 2 * np.pi)
+
+        fast_phase = np.exp(1j * (2 * np.pi * f_b * t + phi0))  # (N_r,)
+        doppler_phase = np.exp(1j * 2 * np.pi * f_d * chirps)  # (N_c,)
+        rx_phase = np.exp(1j * 2 * np.pi * rx_idx * d / lambda_radar)  # (N_rx,)
+
+        # Rank-1 outer products
+        clutter_cube += (
+            path_loss
+            * fast_phase[:, None, None]
+            * doppler_phase[None, :, None]
+            * rx_phase[None, None, :]
+        )
+
+    return clutter_cube
+
+
+@jit(nopython=True, parallel=False, fastmath=False)
+def simulate_ground_clutter_fast_vectorized(
+    fc,
+    B,
+    T_chirp,
+    N_r,
+    N_c,
+    N_rx,
+    ego_velocity,
+    antenna_height=0.08,
+    R_min=0.02,
+    R_max=0.25,
+    n_scatterers=100,
+    clutter_power=0.05,
+    doppler_spread=0.1,
+):
+    """
+    Vectorized ground clutter simulation.
+    Equivalent to simulate_ground_clutter_fast, but without Python loops.
+    """
+
+    c = 3e8
+    lambda_radar = c / fc
+    d = c / (2 * fc)
+
+    # Axes
+    t = (np.arange(N_r) / N_r) * T_chirp  # (N_r,)
+    chirps = np.arange(N_c) * T_chirp  # (N_c,)
+    rx_idx = np.arange(N_rx)  # (N_rx,)
+
+    # ------------------------------------------------
+    # Sample scatterers (S)
+    # ------------------------------------------------
+    S = n_scatterers
+
+    R = np.random.uniform(R_min, R_max, S)  # (S,)
+    v = ego_velocity + np.random.randn(S) * doppler_spread  # (S,)
+    phi0 = np.random.uniform(0, 2 * np.pi, S)  # (S,)
+
+    path_loss = clutter_power / (R**2 + antenna_height**2)  # (S,)
+
+    f_b = 2 * B * R / (c * T_chirp)  # (S,)
+    f_d = 2 * v * fc / c  # (S,)
+
+    # ------------------------------------------------
+    # Phase terms
+    # ------------------------------------------------
+    # Fast time: (S, N_r)
+    fast_phase = np.exp(1j * (2 * np.pi * f_b[:, None] * t[None, :] + phi0[:, None]))
+
+    # Doppler slow time: (S, N_c)
+    doppler_phase = np.exp(1j * 2 * np.pi * f_d[:, None] * chirps[None, :])
+
+    # RX phase: (N_rx,)
+    rx_phase = np.exp(1j * 2 * np.pi * rx_idx * d / lambda_radar)
+
+    # ------------------------------------------------
+    # Combine via broadcasting
+    # ------------------------------------------------
+    # Result before summation:
+    # (S, N_r, N_c, N_rx)
+    clutter = (
+        path_loss[:, None, None, None]
+        * fast_phase[:, :, None, None]
+        * doppler_phase[:, None, :, None]
+        * rx_phase[None, None, None, :]
+    )
+
+    # Sum over scatterers
+    clutter_cube = np.sum(clutter, axis=0).astype(np.complex64)
+
+    return clutter_cube
+
 class RadarSimulator:
     def __init__(self, fc, B, T_chirp, n_samples, n_chirp, n_rx, add_zero_noise):
         # ----------------------------
@@ -143,6 +326,8 @@ class RadarSimulator:
         # Add thermal noise
         # ----------------------------
         signal_power = np.mean(np.abs(radar_cube) ** 2)
+        # print(signal_power)
+        # signal_power = 500
         noise_power = signal_power / (10 ** (SNR_dB / 10))
         noise = np.sqrt(noise_power / 2) * (
             np.random.randn(*radar_cube.shape) + 1j * np.random.randn(*radar_cube.shape)
@@ -151,8 +336,8 @@ class RadarSimulator:
 
         return radar_cube
 
-    def simulate_radar(self, target):
-        return RadarSimulator._simulate_radar_optimized(
+    def simulate_radar(self, target, ego_vel):
+        radar_cube = RadarSimulator._simulate_radar_optimized(
             target,
             self.fc,
             self.B,
@@ -162,6 +347,20 @@ class RadarSimulator:
             self.n_rx,
             self.add_zero_noise,
         )
+
+        ground_clutter = simulate_ground_clutter_fast_vectorized(
+            fc=self.fc,
+            B=self.B,
+            T_chirp=self.T_chirp,
+            N_r=self.n_samples,
+            N_c=self.n_chirp,
+            N_rx=self.n_rx,
+            # ego_velocity=target[1],  # vehicle speed
+            ego_velocity=ego_vel,  # vehicle speed
+            clutter_power=0.007,
+        )
+
+        return radar_cube + ground_clutter
 
     @jit(nopython=True, parallel=False, fastmath=False)
     def _simulate_radar_optimized(
@@ -228,7 +427,7 @@ class RadarSimulator:
         #                     (R + 0.16, RCS * 0.09, v * 1.5)]
 
         # Clutter
-        sensor_clutter_rcs = 0.2
+        sensor_clutter_rcs = 1.5
         sensor_range_base = 0.01
         f_b_clutter = 2 * B * sensor_range_base / (c * T_chirp)
         clutter_fast = np.exp(1j * (2 * np.pi * f_b_clutter * t))
@@ -249,13 +448,18 @@ class RadarSimulator:
             # Doppler slow-time phase (ONCE)
             doppler_phase = np.exp(1j * (2 * np.pi * f_d * chirps))
 
+            path_loss = 1.0 / (eff_R**2)
+            # path_loss = 1.0
+
             for n_rx in range(N_rx):
                 rx_p = rx_phase[n_rx]
 
                 for n_c in range(N_c):
                     dp = doppler_phase[n_c]
 
-                    radar_cube[:, n_c, n_rx] += eff_RCS * rx_p * dp * fast_phase
+                    radar_cube[:, n_c, n_rx] += (
+                        path_loss * eff_RCS * rx_p * dp * fast_phase
+                    )
 
                     if add_zero_noise:
                         # clutter (both Doppler signs)
@@ -325,7 +529,7 @@ class RadarSimulator:
         # Corner Reflector Clutter Model with Reflective Patterns (Trihedral Signature)
         # ----------------------------
         # Simulates realistic angular reflective patterns from trihedral corner reflectors
-        sensor_clutter_rcs = 0.2  # TODO make this a configurable parmater
+        sensor_clutter_rcs = 1.5  # TODO make this a configurable parmater
         sensor_range_base = 0.01  # TODO make this a configurable parmater
 
         # for target in targets:
@@ -353,8 +557,8 @@ class RadarSimulator:
 
                     phase_angle = 2 * np.pi * n_rx * d * np.sin(theta) / lambda_radar
 
-                    # path_loss = 1.0 / (eff_R ** 2)
-                    path_loss = 1.0
+                    path_loss = 1.0 / (eff_R**2)
+                    # path_loss = 1.0
 
                     radar_cube[:, n_c, n_rx] += (
                         eff_RCS
@@ -691,7 +895,7 @@ class RadarObservation(ObservationType):
             self.N_c = kwargs["N_c"]  # Number of chirps (for Doppler)
             self.N_rx = kwargs["N_rx"]  # number of receive antennas (ULA)
 
-            self.add_zero_noise = True
+            self.add_zero_noise = False
 
             self.thermal_noise_snr = kwargs["thermal_noise_snr"]
 
@@ -712,7 +916,7 @@ class RadarObservation(ObservationType):
 
     def space(self) -> spaces.Space:
         if self.dist_only:
-            return spaces.Box(shape=(3,), low=-1, high=1, dtype=np.float64)
+            return spaces.Box(shape=(2,), low=-1, high=1, dtype=np.float64)
             # return spaces.Box(shape=(2,), low=-1, high=1, dtype=np.float64)
         elif self.use_radar_simulation:
             return spaces.Box(
@@ -741,10 +945,10 @@ class RadarObservation(ObservationType):
         # relative y position of leader to ego vehicle
         obs[1] = utils.lmap(obs[1], [-1.0, 1.0], [-1, 1])
 
-        # speed of leader towards ego vehicle
-        obs[2] = utils.lmap(obs[2], [-1.0, 1.0], [-1, 1])
-
         if not self.dist_only:
+            # speed of leader towards ego vehicle
+            obs[2] = utils.lmap(obs[2], [-1.0, 1.0], [-1, 1])
+
             # absolute speed of ego vehicle
             obs[3] = utils.lmap(obs[3], [0.2, 1.0], [-1, 1])
 
@@ -792,8 +996,8 @@ class RadarObservation(ObservationType):
             speed = self.vel_bins[ind]
 
         if self.dist_only:
-            obs = np.array([dist, speed, self.observer_vehicle.speed])
-            # obs = np.array([dist, speed])
+            # obs = np.array([dist, speed, self.observer_vehicle.speed])
+            obs = np.array([dist, speed])
         elif not self.use_radar_simulation:
             obs = np.array([x, y, speed, self.observer_vehicle.speed])
 
@@ -805,15 +1009,18 @@ class RadarObservation(ObservationType):
                 10.0,
                 0.9,
             ]  # TODO calculate angle and make RCS a parameter
-            radar_cube = self.radar_simulator.simulate_radar(target)
+            radar_cube = self.radar_simulator.simulate_radar(
+                target, -self.observer_vehicle.speed
+            )
             radar_cube = self.radar_simulator.add_thermal_noise(
                 radar_cube, SNR_dB=self.thermal_noise_snr
             )
             doppler_fft = self.radar_pipeline.run(radar_cube)
             obs = 20 * np.log10(np.abs(np.average(doppler_fft, 2)) + 1e-12)
+            obs = obs[:-1, :]
 
         if self.normalize:
-            obs = self.normalize_obs(obs[:-1, :])
+            obs = self.normalize_obs(obs)
 
         return obs
 

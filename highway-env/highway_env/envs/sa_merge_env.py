@@ -48,7 +48,7 @@ class SingleAgentMergeEnv(AbstractEnv):
                     "N_c": 32,
                     "N_rx": 3,
                     "zero_noise": True,
-                    "thermal_noise_snr": 6,
+                    "thermal_noise_snr": 3,
                 },
                 "use_ros": False,
                 "leader_callback": None,
@@ -58,8 +58,8 @@ class SingleAgentMergeEnv(AbstractEnv):
                 # "simulation_frequency": 40,  # [Hz]
                 "policy_frequency": 10,  # [Hz]
                 "simulation_frequency": 10,  # [Hz]
-                "scaling": 320.76,
-                "centering_position": [0.8, -0.6],
+                "scaling": 385,
+                "centering_position": [0.9, -0.55],
                 # "termination_headway": 4.5,  # [m]
                 "termination_headway": 1.8,  # [m]
                 "speed_reward_weight": 2.0,
@@ -89,7 +89,12 @@ class SingleAgentMergeEnv(AbstractEnv):
         # Driving effiency
         h = (d + leader.LENGTH) / vehicle.speed
 
-        return {"ttc": ttc, "headway": h, "crashed": vehicle.crashed}
+        return {
+            "ttc": ttc,
+            "headway": h,
+            "crashed": vehicle.crashed,
+            "leader_speed": leader.speed,
+        }
 
     def _reward(self, action: int) -> float:
         """
