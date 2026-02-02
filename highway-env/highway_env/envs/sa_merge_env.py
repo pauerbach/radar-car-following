@@ -259,12 +259,12 @@ class SingleAgentMergeEnv(AbstractEnv):
         self.T = int(self.config["duration"] * self.config["policy_frequency"])
 
     def _make_road(self) -> None:
-        # scenario, _ = CommonRoadFileReader("./track.xml").open()
-        # scenario, _ = CommonRoadFileReader("./track2.xml").open()
-        # scenario, _ = CommonRoadFileReader("./rectangle_track.xml").open()
-        scenario, _ = CommonRoadFileReader("./circular_track.xml").open()
-        # scenario, _ = CommonRoadFileReader("./track3.xml").open()
-        # scenario, _ = CommonRoadFileReader("./track5.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/track.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/track2.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/rectangle_track.xml").open()
+        scenario, _ = CommonRoadFileReader("./tracks/circular_track.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/track3.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/track5.xml").open()
 
         net = scenario.lanelet_network
         net_common_road = RoadNetworkCommonRoad(net, is_ring=True)

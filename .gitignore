@@ -4,3 +4,7 @@ highway-env/build
 *.html
 **/__pycache__/
 *.sw*
+ros/build
+ros/log
+ros/install
+highway-env/highway_env.egg-info/

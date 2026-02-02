@@ -1,0 +1,90 @@
+#
+# Definition of all trackable objects
+# Identifier corresponds to Trackable ID set in Tracking Tools
+#
+mocap_node:
+    ros__parameters:
+        rigid_bodies:
+            0:
+                pose: "car0/pose"
+                pose2d: "car0/ground_pose"
+                odom: car0/Odom
+                tf: tf
+                child_frame_id: "car0/base_link"
+                parent_frame_id: "world"
+            1:
+                pose: "car1/pose"
+                pose2d: "car1/ground_pose"
+                odom: car1/Odom
+                tf: tf
+                child_frame_id: "car1/base_link"
+                parent_frame_id: "world"
+            2:
+                pose: "car2/pose"
+                pose2d: "car2/ground_pose"
+                odom: car2/Odom
+                tf: tf
+                child_frame_id: "car2/base_link"
+                parent_frame_id: "world"
+            3:
+                pose: "car3/pose"
+                pose2d: "car3/ground_pose"
+                odom: car3/Odom
+                tf: tf
+                child_frame_id: "car3/base_link"
+                parent_frame_id: "world"
+            4:
+                pose: "car4/pose"
+                pose2d: "car4/ground_pose"
+                odom: car4/Odom
+                tf: tf
+                child_frame_id: "car4/base_link"
+                parent_frame_id: "world"
+            5:
+                pose: "car5/pose"
+                pose2d: "car5/ground_pose"
+                odom: car5/Odom
+                tf: tf
+                child_frame_id: "car5/base_link"
+                parent_frame_id: "world"
+            6:
+                pose: "car6/pose"
+                pose2d: "car6/ground_pose"
+                odom: car6/Odom
+                tf: tf
+                child_frame_id: "car6/base_link"
+                parent_frame_id: "world"
+            7:
+                pose: "car7/pose"
+                pose2d: "car7/ground_pose"
+                odom: car7/Odom
+                tf: tf
+                child_frame_id: "car7/base_link"
+                parent_frame_id: "world"
+            8:
+                pose: "car8/pose"
+                pose2d: "car8/ground_pose"
+                odom: car8/Odom
+                tf: tf
+                child_frame_id: "car8/base_link"
+                parent_frame_id: "world"
+            9:
+                pose: "car9/pose"
+                pose2d: "car9/ground_pose"
+                odom: car9/Odom
+                tf: tf
+                child_frame_id: "car9/base_link"
+                parent_frame_id: "world"
+            10:
+                pose: "wand/pose"
+                pose2d: "wand/ground_pose"
+                odom: wand/Odom
+                tf: tf
+                child_frame_id: "wand/base_link"
+                parent_frame_id: "world"
+        optitrack_config:
+                multicast_address: "239.255.42.99"
+                command_port: 1510
+                data_port: 1511
+                enable_optitrack: true
+                version: [4,0,0,0]
