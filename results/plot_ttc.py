@@ -1,62 +1,31 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-# ttc = np.load("ttc_circular.npy")
-# headway = np.load("headway_circular.npy")
-# ttc = np.load("ttc_straight.npy")
-# headway = np.load("headway_straight.npy")
-# ttc = np.load("ttc_waving.npy")
-# headway = np.load("headway_waving.npy")
-# ttc = np.load("ttc_straight_10hz.npy")
-# headway = np.load("headway_straight_10hz.npy")
-# ttc = np.load("./ttc_circular_10hz_discretization.npy")
-# headway = np.load("./headway_circular_10hz_discretization.npy")
-# ttc = np.load("./ttc_circular_10hz_discretization_noise.npy")
-# headway = np.load("./headway_circular_10hz_discretization_noise.npy")
-# ttc = np.load("./ttc_circular_10hz_discretization_noise_dist_only.npy")
-# headway = np.load("./headway_circular_10hz_discretization_noise_dist_only.npy")
-# ttc = np.load("./ttc_waving_10hz_discretization_noise_dist_only.npy")
-# headway = np.load("./headway_waving_10hz_discretization_noise_dist_only.npy")
-# ttc = np.load("./ttc_radar.npy")
-# headway = np.load("./headway_radar.npy")
-# ttc = np.load("./ttc_dist_only.npy")
-# headway = np.load("./headway_dist_only.npy")
-# ttc = np.load("./ttc_radar_no_zero_noise.npy")
-# headway = np.load("./headway_radar_no_zero_noise.npy")
-# ttc = np.load("./ttc_dist_only.npy")
-# headway = np.load("./headway_dist_only.npy")
-# ttc = np.load("./ttc_dist_only_no_ego_speed.npy")
-# headway = np.load("./headway_dist_only_no_ego_speed.npy")
-# ttc = np.load("./ttc_dist_only_with_ego_speed.npy")
-# headway = np.load("./headway_dist_only_with_ego_speed.npy")
-# ttc = np.load("./ttc_radar_64_feature_dim.npy")
-# headway = np.load("./headway_radar_64_feature_dim.npy")
-# ttc = np.load("./ttc_radar_128_feature_dim_best_model.npy")
-# headway = np.load("./headway_radar_128_feature_dim_best_model.npy")
-# ttc = np.load("./ttc_radar_new_radar_parameters_best_model.npy")
-# headway = np.load("./headway_radar_new_radar_parameters_best_model.npy")
-# ttc = np.load("./ttc_radar_new_radar_parameters_zero_noise.npy")
-# headway = np.load("./headway_radar_new_radar_parameters_zero_noise.npy")
-# ttc = np.load("./ttc_radar_new_radar_parameters_zero_noise_new.npy")
-# headway = np.load("./headway_radar_new_radar_parameters_zero_noise_new.npy")
-# ttc = np.load("./ttc_radar_new_radar_parameters_zero_noise_not_best.npy")
-# headway = np.load("./headway_radar_new_radar_parameters_zero_noise_not_best.npy")
-# ttc = np.load("./ttc_radar_chatgpt_suggestions.npy")
-# headway = np.load("./headway_radar_chatgpt_suggestions.npy")
-# ttc = np.load("./ttc_radar_chatgpt_suggestions_final.npy")
-# headway = np.load("./headway_radar_chatgpt_suggestions_final.npy")
-# ttc = np.load("./ttc_radar_chatgpt_suggestions_longer_best.npy")
-# headway = np.load("./headway_radar_chatgpt_suggestions_longer_best.npy")
-# ttc = np.load("./ttc_radar_chatgpt_suggestions_cnn_optimized_fft_best.npy")
-# headway = np.load("./headway_radar_chatgpt_suggestions_cnn_optimized_fft_best.npy")
-ttc = np.load("./ttc_radar_path_loss_with_ground_clutter_best.npy")
-headway = np.load("./headway_radar_path_loss_with_ground_clutter_best.npy")
-# ttc = np.load("./ttc_idm.npy")
-# headway = np.load("./headway_idm.npy")
-# ttc = np.load("./ttc_idm2.npy")
-# headway = np.load("./headway_idm2.npy")
-# ttc = np.load("./ttc_idm3.npy")  # with time_wanted = 0.85
-# headway = np.load("./headway_idm3.npy")
+sns.set_theme()
+sns.set_context("paper")
+sns.set(font_scale=2)
+
+ttc_idm = np.load("./ttc_idm3.npy")
+headway_idm = np.load("./headway_idm3.npy")
+
+ttc_direct = np.load("./ttc_direct_distance_vel.npy")
+headway_direct = np.load("./headway_direct_distance_vel.npy")
+
+ttc = np.load("./ttc_radar.npy")
+headway = np.load("./headway_radar.npy")
+# ttc = np.load("./ttc_radar_new_pixi.npy")
+# headway = np.load("./headway_radar_new_pixi.npy")
+
+ttc_idm = ttc_idm[ttc_idm < 10]  # only use ttcs below 10s as in paper
+ttc_idm = ttc_idm[ttc_idm > 0]  # only use ttcs below 10s as in paper
+headway_idm = headway_idm[headway_idm < 5]  # only use headways below 5 as in paper
+
+ttc_direct = ttc_direct[ttc_direct < 10]  # only use ttcs below 10s as in paper
+ttc_direct = ttc_direct[ttc_direct > 0]  # only use ttcs below 10s as in paper
+headway_direct = headway_direct[
+    headway_direct < 5
+]  # only use headways below 5 as in paper
 
 ttc = ttc[ttc < 10]  # only use ttcs below 10s as in paper
 ttc = ttc[ttc > 0]  # only use ttcs below 10s as in paper
@@ -66,13 +35,23 @@ headway = headway[headway < 5]  # only use headways below 5 as in paper
 fig, axs = plt.subplots(2, figsize=(20, 10))
 
 # axs[0].plot(ttc)
-axs[0].hist(ttc, bins=100, density=True)
-axs[0].set(xlabel="Step", ylabel="TTC")
+axs[0].hist(ttc, bins=100, density=True, label="Range-Doppler Input")
+axs[0].hist(ttc_idm, bins=100, density=True, label="IDM", alpha=0.7)
+axs[0].hist(ttc_direct, bins=100, density=True, label="Direct Input", alpha=0.7)
+axs[0].set(xlabel="TTC [s]", ylabel="Density")
+axs[0].yaxis.labelpad = 20
 # axs[0].set_ylim(0, 10)
+axs[0].legend()
 
 # axs[1].plot(headway)
-axs[1].hist(headway, bins=100, density=True)
-axs[1].set(xlabel="Step", ylabel="Headway")
+axs[1].hist(headway, bins=100, density=True, label="Range-Doppler Input")
+axs[1].hist(headway_idm, bins=100, density=True, label="IDM", alpha=0.7)
+axs[1].hist(headway_direct, bins=100, density=True, label="Direct Input", alpha=0.7)
+axs[1].set(xlabel="Headway [s]", ylabel="Density")
+axs[1].yaxis.labelpad = 20
 # axs[1].set_ylim(0, 5)
+axs[1].legend()
 
-plt.show()
+plt.subplots_adjust(hspace=0.3)
+# plt.show()
+plt.savefig("ttc_headway_comparison.png", dpi=300, bbox_inches="tight")
