@@ -464,7 +464,8 @@ class RoadCommonRoad(object):
         s_front = s_rear = None
         v_front = v_rear = None
         for v in self.vehicles + self.objects:
-            if v is not vehicle:  # and not isinstance(v, Landmark):
+            # if v is not vehicle:  # and not isinstance(v, Landmark):
+            if v.id != vehicle.id:  # and not isinstance(v, Landmark):
                 if not (v.lane_index == lane_index):
                     continue
 

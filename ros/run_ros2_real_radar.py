@@ -20,7 +20,7 @@ from stable_baselines3 import PPO
 
 
 class CarPublisher(Node):
-    def __init__(self, use_real_radar=False):
+    def __init__(self, use_real_radar=False, use_idm=False):
         super().__init__("car_publisher")
 
         # vehicle ids of the physical cars and the ids in the simulation
@@ -48,6 +48,10 @@ class CarPublisher(Node):
         )
 
         env_config["action"]["add_noise"] = False
+
+        if use_idm:
+            env_config["action"]["type"] = "IDM"
+
         env_config["use_ros"] = True
 
         self.radar_pipeline = None
@@ -93,7 +97,7 @@ class CarPublisher(Node):
         )
 
     def radar_callback(self, msg):
-        print("got radar")
+        # print("got radar")
         self.radar_list.append(msg)
 
         if self.radar_pipeline == None:
@@ -171,7 +175,7 @@ class CarPublisher(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    node = CarPublisher(use_real_radar=True)
+    node = CarPublisher(use_real_radar=True, use_idm=False)
 
     try:
         rclpy.spin(node)
