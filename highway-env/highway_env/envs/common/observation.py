@@ -28,12 +28,13 @@ class Draw:
     # Draw is done for each antenna, and each antenna is represented for
     # other subplot
 
-    def __init__(self, max_speed_m_s, max_range_m):
+    def __init__(self, max_speed_m_s, max_range_m, title=""):
         # max_range_m:   maximum supported range
         # max_speed_m_s: maximum supported speed
         self._h = None
         self._max_speed_m_s = max_speed_m_s
         self._max_range_m = max_range_m
+        self.title = title
 
         plt.ion()
 
@@ -70,6 +71,7 @@ class Draw:
 
         self._ax.set_xlabel("velocity (m/s)")
         self._ax.set_ylabel("distance (m)")
+        self._ax.set_title(self.title)
         self._fig.subplots_adjust(right=0.8)
         cbar_ax = self._fig.add_axes([0.85, 0.0, 0.03, 1])
 
@@ -282,6 +284,7 @@ def simulate_ground_clutter_fast_vectorized(
     clutter_cube = np.sum(clutter, axis=0).astype(np.complex64)
 
     return clutter_cube
+
 
 class RadarSimulator:
     def __init__(self, fc, B, T_chirp, n_samples, n_chirp, n_rx, add_zero_noise):

@@ -278,6 +278,13 @@ class IDMDummy(ActionType):
     def act(self, action: int) -> None:
         self.controlled_vehicle.act()
 
+        # add noise
+        noise = np.random.rand() * 0.1 - 0.05
+        self.controlled_vehicle.speed += noise
+
+        # self.controlled_vehicle.act(target_speed)
+        # self.last_action = action
+
 
 class MultiAgentAction(ActionType):
     def __init__(self, env: "AbstractEnv", action_config: dict, **kwargs) -> None:

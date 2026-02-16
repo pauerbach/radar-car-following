@@ -455,7 +455,7 @@ class SteeringMDPVehicle(ControlledVehicle):
             road, position, heading, speed, target_lane_index, target_speed, route
         )
 
-        self.last_speed = None
+        self.last_speed = speed
 
     def act(self, speed=None) -> None:
         self.follow_road()

@@ -6,8 +6,8 @@ sns.set_theme()
 sns.set_context("paper")
 sns.set(font_scale=2)
 
-ttc_idm = np.load("./ttc_idm3.npy")
-headway_idm = np.load("./headway_idm3.npy")
+ttc_idm = np.load("./ttc_idm_with_action_noise.npy")
+headway_idm = np.load("./headway_idm_with_action_noise.npy")
 
 ttc_direct = np.load("./ttc_direct_distance_vel.npy")
 headway_direct = np.load("./headway_direct_distance_vel.npy")
@@ -35,18 +35,18 @@ headway = headway[headway < 5]  # only use headways below 5 as in paper
 fig, axs = plt.subplots(2, figsize=(20, 10))
 
 # axs[0].plot(ttc)
-axs[0].hist(ttc, bins=100, density=True, label="Range-Doppler Input")
-axs[0].hist(ttc_idm, bins=100, density=True, label="IDM", alpha=0.7)
+axs[0].hist(ttc_idm, bins=100, density=True, label="IDM")
 axs[0].hist(ttc_direct, bins=100, density=True, label="Direct Input", alpha=0.7)
+axs[0].hist(ttc, bins=100, density=True, label="Range-Doppler Input", alpha=0.7)
 axs[0].set(xlabel="TTC [s]", ylabel="Density")
 axs[0].yaxis.labelpad = 20
 # axs[0].set_ylim(0, 10)
 axs[0].legend()
 
 # axs[1].plot(headway)
-axs[1].hist(headway, bins=100, density=True, label="Range-Doppler Input")
-axs[1].hist(headway_idm, bins=100, density=True, label="IDM", alpha=0.7)
+axs[1].hist(headway_idm, bins=100, density=True, label="IDM")
 axs[1].hist(headway_direct, bins=100, density=True, label="Direct Input", alpha=0.7)
+axs[1].hist(headway, bins=100, density=True, label="Range-Doppler Input", alpha=0.7)
 axs[1].set(xlabel="Headway [s]", ylabel="Density")
 axs[1].yaxis.labelpad = 20
 # axs[1].set_ylim(0, 5)

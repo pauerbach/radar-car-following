@@ -85,13 +85,15 @@ class CarPublisher(Node):
             10,
         )
 
-        self.model = PPO.load("./logs/01-02:11-16:48.89/best_model/best_model.zip")
+        # self.model = PPO.load("./logs/01-02:11-16:48.89/best_model/best_model.zip")
+        self.model = PPO.load("./logs/01-09:15-11:21.25/best_model/best_model.zip")
 
         self.sim_timer = self.create_timer(
             1 / self.env.unwrapped.config["policy_frequency"], self.timer_callback
         )
 
     def radar_callback(self, msg):
+        print("got radar")
         self.radar_list.append(msg)
 
         if self.radar_pipeline == None:
@@ -100,8 +102,8 @@ class CarPublisher(Node):
             )
             max_range = msg.max_range
             max_doppler = msg.max_doppler
-            self.draw = Draw(max_doppler, max_range)
-            self.draw_sim = Draw(max_doppler, max_range)
+            self.draw = Draw(max_doppler, max_range, "Real Radar")
+            self.draw_sim = Draw(max_doppler, max_range, "Sim Radar")
             self.mti_history = np.zeros(
                 (msg.num_samples, msg.num_chirps, msg.num_antenna)
             )
