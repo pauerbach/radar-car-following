@@ -8,6 +8,7 @@ from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
 from geometry_msgs.msg import Pose2D
 from radar_msgs.msg import RadarFrame
+from rclpy.qos import qos_profile_sensor_data
 
 
 sys.path.append("./highway-env/")
@@ -30,6 +31,8 @@ class CarPublisher(Node):
         self.sim_leader_id = 1
 
         self.use_real_radar = use_real_radar
+
+        self.last_stamp = None
 
         self.pubs = dict()
 
@@ -86,19 +89,21 @@ class CarPublisher(Node):
             RadarFrame,
             "radar_data",
             self.radar_callback,
-            10,
+            qos_profile=qos_profile_sensor_data,
         )
 
         # self.model = PPO.load("./logs/01-02:11-16:48.89/best_model/best_model.zip")
         self.model = PPO.load("./logs/01-09:15-11:21.25/best_model/best_model.zip")
+        # self.model = PPO.load("./logs/02-17:14-05:37.57/best_model/best_model.zip")
 
         self.sim_timer = self.create_timer(
             1 / self.env.unwrapped.config["policy_frequency"], self.timer_callback
         )
 
     def radar_callback(self, msg):
-        # print("got radar")
         self.radar_list.append(msg)
+
+        self.last_stamp = msg.header.stamp
 
         if self.radar_pipeline == None:
             self.radar_pipeline = RadarPipeline(
@@ -106,8 +111,8 @@ class CarPublisher(Node):
             )
             max_range = msg.max_range
             max_doppler = msg.max_doppler
-            self.draw = Draw(max_doppler, max_range, "Real Radar")
-            self.draw_sim = Draw(max_doppler, max_range, "Sim Radar")
+            # self.draw = Draw(max_doppler, max_range, "Real Radar")
+            # self.draw_sim = Draw(max_doppler, max_range, "Sim Radar")
             self.mti_history = np.zeros(
                 (msg.num_samples, msg.num_chirps, msg.num_antenna)
             )
@@ -138,22 +143,30 @@ class CarPublisher(Node):
 
         self.real_obs = obs
 
-        self.draw.draw(obs[0, :, :])
-        self.draw_sim.draw(self.obs[0, :, :])
+        # self.draw.draw(obs[0, :, :])
+        # self.draw_sim.draw(self.obs[0, :, :])
 
-    def timer_callback(self):
         if self.use_real_radar and self.real_obs is not None:
             action, _ = self.model.predict(self.real_obs)
         else:
             action, _ = self.model.predict(self.obs)
 
-        self.obs, _, done, _, _ = self.env.step(action)
-        done = False
+        # self.obs, _, done, _, _ = self.env.step(action)
+        self.env.unwrapped._simulate(action)
 
-        if done:
-            self.obs, _ = self.env.reset()
+        # self.env.render()
 
-        self.env.render()
+    def timer_callback(self):
+        pass
+        # if self.use_real_radar and self.real_obs is not None:
+        #     action, _ = self.model.predict(self.real_obs)
+        # else:
+        #     action, _ = self.model.predict(self.obs)
+        #
+        # # self.obs, _, done, _, _ = self.env.step(action)
+        # self.env.unwrapped._simulate(action)
+        #
+        # self.env.render()
 
     def pose_callback(self, msg, id):
         position = np.zeros(2)
@@ -167,6 +180,9 @@ class CarPublisher(Node):
     def publish(self, steering, speed, id):
         msg = AckermannDriveStamped()
 
+        t = self.get_clock().now()
+        msg.header.stamp = t.to_msg()
+        # msg.header.stamp = self.last_stamp
         msg.drive.speed = speed
         msg.drive.steering_angle = np.rad2deg(steering)
         self.pubs[id].publish(msg)
