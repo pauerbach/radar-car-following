@@ -760,6 +760,7 @@ class RandomVehicle(ControlledVehicle):
         )
 
         self.speed = max(self.speed, 0.2)
+        # self.speed = min(self.speed, 0.7)
         self.last_speed = self.speed
 
     def acceleration(self):

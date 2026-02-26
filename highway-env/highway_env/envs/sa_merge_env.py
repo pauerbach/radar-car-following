@@ -41,6 +41,7 @@ class SingleAgentMergeEnv(AbstractEnv):
                     "normalize": True,
                     "dist_only": False,
                     "use_radar_simulation": True,
+                    "use_cfar": False,
                     "fc": 60.75e9,
                     "B": 5.36e9,
                     "T_chirp": 0.00123371,

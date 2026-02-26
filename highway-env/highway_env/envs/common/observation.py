@@ -9,6 +9,7 @@ from scipy import signal
 from numba import jit, complex64, prange
 import pyfftw
 import matplotlib.pyplot as plt
+import cv2
 
 from highway_env import utils
 
@@ -20,6 +21,47 @@ if TYPE_CHECKING:
     from highway_env.envs.common.abstract import AbstractEnv
 
 c = 3e8  # Speed of light (m/s)
+
+
+def ca_cfar_2d(power_map, guard=1, train=4, pfa=1e-3):
+    """
+    2D Cell-Averaging CFAR on linear power map.
+    guard: guard cells on each side (square guard region)
+    train: training cells thickness around guard
+    pfa: desired probability of false alarm
+    Returns boolean detection map of same shape.
+    """
+    H, W = power_map.shape
+    half = guard + train  # half window radius including guard+train
+
+    # Integral image for fast rectangular sums
+    I = np.pad(power_map, ((1, 0), (1, 0)), mode="constant")
+    I = np.cumsum(np.cumsum(I, axis=0), axis=1)
+
+    def rect_sum(y0, x0, y1, x1):
+        return I[y1 + 1, x1 + 1] - I[y0, x1 + 1] - I[y1 + 1, x0] + I[y0, x0]
+
+    det = np.zeros_like(power_map, dtype=bool)
+    N_train = (2 * half + 1) ** 2 - (2 * guard + 1) ** 2
+    alpha = N_train * (pfa ** (-1.0 / max(N_train, 1)) - 1.0)
+
+    for y in range(half, H - half):
+        for x in range(half, W - half):
+            y0, x0 = y - half, x - half
+            y1, x1 = y + half, x + half
+            total_sum = rect_sum(y0, x0, y1, x1)
+
+            yg0, xg0 = y - guard, x - guard
+            yg1, xg1 = y + guard, x + guard
+            guard_sum = rect_sum(yg0, xg0, yg1, xg1)
+
+            noise_sum = total_sum - guard_sum
+            noise_mean = noise_sum / max(N_train, 1)
+            threshold = alpha * noise_mean
+
+            if power_map[y, x] > threshold:
+                det[y, x] = True
+    return det
 
 
 class Draw:
@@ -872,6 +914,7 @@ class RadarObservation(ObservationType):
         discretice: bool = True,
         dist_only: bool = False,
         use_radar_simulation: bool = False,
+        use_cfar: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(env, **kwargs)
@@ -883,10 +926,11 @@ class RadarObservation(ObservationType):
         self.discretice = discretice
         self.dist_only = dist_only
         self.use_radar_simulation = use_radar_simulation
+        self.use_cfar = use_cfar
 
         self.vel_bins = np.arange(-self.vel_limit, self.vel_limit, self.vel_resolution)
 
-        if self.use_radar_simulation:
+        if self.use_radar_simulation or self.use_cfar:
             # FMCW waveform
             fc = kwargs["fc"]  # Carrier frequency (Hz)
             B = kwargs["B"]  # Bandwidth (Hz)
@@ -917,8 +961,10 @@ class RadarObservation(ObservationType):
                 self.N_r,
             )
 
+            self.max_distance = self.radar_simulator.get_max_range()
+
     def space(self) -> spaces.Space:
-        if self.dist_only:
+        if self.dist_only or self.use_cfar:
             return spaces.Box(shape=(2,), low=-1, high=1, dtype=np.float64)
             # return spaces.Box(shape=(2,), low=-1, high=1, dtype=np.float64)
         elif self.use_radar_simulation:
@@ -948,7 +994,7 @@ class RadarObservation(ObservationType):
         # relative y position of leader to ego vehicle
         obs[1] = utils.lmap(obs[1], [-1.0, 1.0], [-1, 1])
 
-        if not self.dist_only:
+        if not self.dist_only and not self.use_cfar:
             # speed of leader towards ego vehicle
             obs[2] = utils.lmap(obs[2], [-1.0, 1.0], [-1, 1])
 
@@ -965,7 +1011,7 @@ class RadarObservation(ObservationType):
             if v.id == 1:
                 veh = v
 
-        if self.dist_only or self.use_radar_simulation:
+        if self.dist_only or self.use_radar_simulation or self.use_cfar:
             dist = (
                 np.linalg.norm(self.observer_vehicle.position - veh.position)
                 - self.observer_vehicle.LENGTH
@@ -1001,11 +1047,11 @@ class RadarObservation(ObservationType):
         if self.dist_only:
             # obs = np.array([dist, speed, self.observer_vehicle.speed])
             obs = np.array([dist, speed])
-        elif not self.use_radar_simulation:
+        elif not self.use_radar_simulation and not self.use_cfar:
             obs = np.array([x, y, speed, self.observer_vehicle.speed])
 
-        if self.use_radar_simulation:
-            # print(dist)
+        if self.use_radar_simulation or self.use_cfar:
+            # print(f"Real: {speed} {dist}")
             target = [
                 dist,
                 speed,
@@ -1019,8 +1065,29 @@ class RadarObservation(ObservationType):
                 radar_cube, SNR_dB=self.thermal_noise_snr
             )
             doppler_fft = self.radar_pipeline.run(radar_cube)
-            obs = 20 * np.log10(np.abs(np.average(doppler_fft, 2)) + 1e-12)
-            obs = obs[:-1, :]
+            # obs = 20 * np.log10(np.abs(np.average(doppler_fft, 2)) + 1e-12)
+            # obs = obs[:-1, :]
+            obs = np.average(doppler_fft, 2)
+
+            if self.use_cfar:
+                detections = ca_cfar_2d(obs, guard=4, train=3, pfa=1e-3)
+                detections = detections.astype(np.uint8) * 255
+                contours, _ = cv2.findContours(
+                    detections,
+                    cv2.RETR_LIST | cv2.RETR_EXTERNAL,
+                    cv2.CHAIN_APPROX_SIMPLE,
+                )
+                if len(contours) > 0:
+                    cnt = max(contours, key=cv2.contourArea)
+                    (x, y), _ = cv2.minEnclosingCircle(cnt)
+                    w, h = detections.shape
+                    det_speed = (x - w / 2) / (w / 2)
+                    det_dist = y * (self.max_distance / 2) / h
+                    obs = np.array([det_speed, det_dist])
+                    # print(f"CFAR {obs}")
+            else:
+                obs = 20 * np.log10(np.abs(obs) + 1e-12)
+                obs = obs[:-1, :]
 
         if self.normalize:
             obs = self.normalize_obs(obs)
