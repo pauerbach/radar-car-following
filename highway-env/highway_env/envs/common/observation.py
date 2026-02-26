@@ -1085,6 +1085,9 @@ class RadarObservation(ObservationType):
                     det_dist = y * (self.max_distance / 2) / h
                     obs = np.array([det_speed, det_dist])
                     # print(f"CFAR {obs}")
+                else:
+                    # print("No contours found")
+                    obs = np.array([0, 0])
             else:
                 obs = 20 * np.log10(np.abs(obs) + 1e-12)
                 obs = obs[:-1, :]
