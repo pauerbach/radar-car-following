@@ -95,17 +95,18 @@ These files can be visualized using the plotting scripts in the `results/` direc
 To evaluate a trained agent on the miniature vehicle platform, use:
 
 ```
-```
 
 ros/run_ros2_real_radar.py
-
 ```
+
 ```
 
 #### Step 1: Source the ROS2 Environment
 
 ```
+
 source ros/install/setup.zsh
+
 ```
 
 #### Step 2: Run the Evaluation Script
@@ -117,7 +118,9 @@ The script allows you to configure whether a real or simulated radar sensor is u
 To record all ROS2 messages during evaluation:
 
 ```
+
 ros2 bag record --all
+
 ```
 
 This creates a ROS2 bag file containing all recorded data.
@@ -129,13 +132,17 @@ To evaluate a recorded ROS2 bag:
 Start the evaluation script:
 
 ```
+
 ros/evaluate_rosbag.py
+
 ```
 
 In a separate terminal, play back the bag file:
 
 ```
+
 ros2 bag play <ROS2BagFolder> --loop
+
 ```
 
 After terminating the evaluation script, the same NumPy files (ttc.npy and headway.npy) are generated as in the simulation evaluation. These can be visualized using the same plotting tools.
@@ -145,7 +152,9 @@ After terminating the evaluation script, the same NumPy files (ttc.npy and headw
 The script:
 
 ```
+
 results/plot_ttc.py
+
 ```
 
 is used to visualize and compare TTC and headway distributions for different follower types.
