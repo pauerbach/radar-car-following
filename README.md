@@ -32,7 +32,7 @@ Two Pixi environments are provided:
   Intended for:
   - Training the reinforcement learning agent on NVIDIA GPU-equipped systems  
 
-Activate an environment using:
+Activate an environment using on of the following commands:
 
 ```bash
 pixi shell -e cpu  # Activate CPU environment
