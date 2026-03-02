@@ -220,8 +220,8 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        np.save("ttc_radar_sim.npy", np.array(node.ttcs))
-        np.save("headway_radar_sim.npy", np.array(node.headways))
+        np.save("ttc_cfar_new2.npy", np.array(node.ttcs))
+        np.save("headway_cfar_new2.npy", np.array(node.headways))
 
         # np.save("commanded_speeds_ego.npy", np.array(node.commanded_speeds[0]))
         # np.save("commanded_speeds_leader.npy", np.array(node.commanded_speeds[1]))

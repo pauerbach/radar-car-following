@@ -962,6 +962,9 @@ class RadarObservation(ObservationType):
             )
 
             self.max_distance = self.radar_simulator.get_max_range()
+            max_range = self.radar_simulator.get_max_range()
+            max_doppler = self.radar_simulator.get_max_velocity()
+            # self.draw = Draw(max_doppler, max_range)
 
     def space(self) -> spaces.Space:
         if self.dist_only or self.use_cfar:
@@ -1070,7 +1073,18 @@ class RadarObservation(ObservationType):
             obs = np.average(doppler_fft, 2)
 
             if self.use_cfar:
-                detections = ca_cfar_2d(obs, guard=4, train=3, pfa=1e-3)
+                draw_obs = 20 * np.log10(np.abs(obs) + 1e-12)
+                draw_obs = draw_obs[:-1, :]
+                # draw_obs = self.normalize_obs(draw_obs)
+                minmin = np.min(draw_obs)
+                maxmax = np.max(draw_obs)
+
+                draw_obs = (draw_obs - minmin) * 255 / (maxmax - minmin)
+
+                # draw_obs = draw_obs[np.newaxis, ...]
+
+                # self.draw.draw(draw_obs)
+                detections = ca_cfar_2d(obs, guard=3, train=1, pfa=1e-1)
                 detections = detections.astype(np.uint8) * 255
                 contours, _ = cv2.findContours(
                     detections,
