@@ -64,6 +64,7 @@ class AbstractEnv(gym.Env):
         # Running
         self.time = 0  # Simulation time
         self.steps = 0  # Actions performed
+        self.total_steps = 0
         self.done = False
         self.T = int(self.config["duration"] * self.config["policy_frequency"])
 
@@ -162,8 +163,7 @@ class AbstractEnv(gym.Env):
         super().reset(seed=seed)
 
         # self.define_spaces()  # First, to set the controlled vehicle class depending on action space
-        # self.time = self.steps = 0
-        self.time = 0
+        self.time = self.steps = 0
         self.done = False
         self._reset()
         # self.define_spaces()  # Second, to link the obs and actions to the vehicles once the scene is created
@@ -201,6 +201,7 @@ class AbstractEnv(gym.Env):
             )
 
         self.steps += 1
+        self.total_steps += 1
 
         self._simulate(action)
 

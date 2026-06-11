@@ -11,12 +11,17 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 
 ## Set same seed for reproducability
-seed = 72
+seed = 42
 
 np.random.seed(seed)
 
 config = {}
+#config = {
+    #"action": {"type": "IDM"},
+    #"observation": {"type": "Kinematics"},
+#}
 config["leader_speed_file"] = "results/leader_speeds_for_playback.npy"
+
 env = gym.make("merge-single-agent-v0", config=config)
 
 num_runs = 50000
@@ -53,6 +58,7 @@ step = 0
 
 for i in t:
     action, _ = model.predict(obs, deterministic=True)
+    #action = 0
     obs, reward, done, _, info = env.step(action)
     step += 1
     # draw.draw(obs[0, :, :])
@@ -92,8 +98,8 @@ for i in t:
 
 print(f"Crashes: {crashes}")
 
-# np.save("results/ttc_radar_for_trajectory_plot.npy", np.array(ttcs))
-# np.save("results/headway_radar_for_trajectory_plot.npy", np.array(headways))
-#
-# np.save("results/leader_speeds_for_trajectory_plot.npy", np.array(leader_speeds))
-# np.save("results/ego_speeds_for_trajectory_plot.npy", np.array(leader_speeds))
+np.save("results/ttc_radar_for_trajectory_plot_seed42.npy", np.array(ttcs))
+np.save("results/headway_radar_for_trajectory_plot_seed42.npy", np.array(headways))
+
+np.save("results/leader_speeds_radar_for_trajectory_plot_seed42.npy", np.array(leader_speeds))
+np.save("results/ego_speeds_radar_for_trajectory_plot_seed42.npy", np.array(ego_speeds))

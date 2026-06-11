@@ -319,7 +319,7 @@ class SingleAgentMergeEnv(AbstractEnv):
             lane.heading_at(start_pos_hdv),
             0.5,
             speed_file=self.config.get("leader_speed_file"),
-            speed_file_start_step=self.steps,
+            speed_file_start_step=self.total_steps,
         )
 
         if self.config["use_ros"]:

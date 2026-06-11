@@ -799,4 +799,3 @@ class RandomVehicle(ControlledVehicle):
         else:
             self.speed = self.playback_speeds[self.playback_counter]
             self.playback_counter += 1
-            print(self.playback_counter)
