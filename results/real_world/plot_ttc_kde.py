@@ -9,20 +9,30 @@ sns.set(font_scale=2)
 ttc_idm = np.load("./ttc_idm_callbak_new.npy")
 headway_idm = np.load("./headway_idm_callbak_new.npy")
 
-ttc_sim = np.load("./ttc_radar_sim.npy")
-headway_sim = np.load("./headway_radar_sim.npy")
+# ttc_sim = np.load("./ttc_radar_sim.npy")
+# headway_sim = np.load("./headway_radar_sim.npy")
+ttc_sim = np.load("./ttc_simulated-radar-new.npy")
+headway_sim = np.load("./headway_simulated-radar-new.npy")
 
 # ttc_cfar = np.load("./ttc_cfar_new.npy")
 # headway_cfar = np.load("./headway_cfar_new.npy")
 # ttc_cfar = np.load("./ttc_cfar.npy")
 # headway_cfar = np.load("./headway_cfar.npy")
-ttc_cfar = np.load("./ttc_cfar_new2.npy")
-headway_cfar = np.load("./headway_cfar_new2.npy")
+# ttc_cfar = np.load("./ttc_cfar_new2.npy")
+# headway_cfar = np.load("./headway_cfar_new2.npy")
+ttc_cfar = np.load("./ttc_cfar_kalmann_real.npy")
+headway_cfar = np.load("./headway_cfar_kalmann_real.npy")
 
-ttc = np.load("./ttc_radar.npy")
-headway = np.load("./headway_radar.npy")
+# ttc = np.load("./ttc_radar.npy")
+# headway = np.load("./headway_radar.npy")
 # ttc = np.load("./ttc_real_new.npy")
 # headway = np.load("./headway_real_new.npy")
+ttc = np.load("./ttc_end-to-end-new.npy")
+headway = np.load("./headway_end-to-end-new.npy")
+# ttc = np.load("./ttc_end-to-end-bananasmooth.npy")
+# headway = np.load("./headway_end-to-end-bananasmooth.npy")
+# ttc = np.load("./ttc_end-to-end-bananaangle.npy")
+# headway = np.load("./headway_end-to-end-bananaangle.npy")
 
 # --- Filtering (as in original script) ---
 ttc_idm = ttc_idm[(ttc_idm < 10) & (ttc_idm > 0)]
@@ -61,10 +71,12 @@ sns.kdeplot(headway, ax=axs[1], label="Range-Doppler Input", linewidth=4, bw_adj
 
 axs[1].set(xlabel="Headway [s]", ylabel="Density")
 axs[1].yaxis.labelpad = 20
-axs[1].set_xlim(0, 5)
+axs[1].set_xlim(0, 3)
 axs[1].set_ylim(bottom=0)
 axs[1].legend()
 
 plt.subplots_adjust(hspace=0.3)
 # plt.show()
-plt.savefig("ttc_headway_comparison_real_world_kde.png", dpi=300, bbox_inches="tight")
+plt.savefig(
+    "ttc_headway_comparison_real_world_kde_new_runs.png", dpi=300, bbox_inches="tight"
+)

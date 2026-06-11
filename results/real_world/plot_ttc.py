@@ -6,8 +6,10 @@ sns.set_theme()
 sns.set_context("paper")
 sns.set(font_scale=2)
 
-ttc_idm = np.load("./ttc_idm_callbak_new.npy")
-headway_idm = np.load("./headway_idm_callbak_new.npy")
+# ttc_idm = np.load("./ttc_idm_callbak_new.npy")
+# headway_idm = np.load("./headway_idm_callbak_new.npy")
+ttc_idm = np.load("./ttc_idm-new.npy")
+headway_idm = np.load("./headway_idm-new.npy")
 
 ttc_sim = np.load("./ttc_radar_sim.npy")
 headway_sim = np.load("./headway_radar_sim.npy")

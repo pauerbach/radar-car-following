@@ -8,3 +8,8 @@ ros/build
 ros/log
 ros/install
 highway-env/highway_env.egg-info/
+wandb/*
+*.npy
+rosbag*
+*.zip
+*.png

@@ -17,9 +17,9 @@ df = pd.read_csv("./reward2.csv")
 ax = sns.lineplot(x=df.columns[0], y=df.columns[1], data=df)
 ax.set(xlabel="Timesteps (1e6)", ylabel="Average Return")
 ax.xaxis.set_major_formatter(ticker.FuncFormatter(fmt_two_digits))
-plt.gca().set_aspect(20000)
+plt.gca().set_aspect(10000)
 
 
 # plt.subplots_adjust(hspace=0.3)
 # plt.show()
-plt.savefig("reward_over_time.png", dpi=300, bbox_inches="tight")
+plt.savefig("reward_over_time_new.png", dpi=300, bbox_inches="tight")

@@ -23,6 +23,101 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 
 
+def cfar_2d(rd_map, guard_cells=2, training_cells=8, threshold_scale=1.5):
+    detections = []
+
+    rows, cols = rd_map.shape
+
+    for r in range(training_cells + guard_cells, rows - training_cells - guard_cells):
+        for d in range(
+            training_cells + guard_cells, cols - training_cells - guard_cells
+        ):
+            # CUT = Cell Under Test
+            cut = rd_map[r, d]
+
+            noise_cells = []
+
+            for i in range(
+                r - training_cells - guard_cells, r + training_cells + guard_cells + 1
+            ):
+                for j in range(
+                    d - training_cells - guard_cells,
+                    d + training_cells + guard_cells + 1,
+                ):
+                    # Skip guard cells + CUT
+                    if abs(i - r) <= guard_cells and abs(j - d) <= guard_cells:
+                        continue
+
+                    noise_cells.append(rd_map[i, j])
+
+            noise_level = np.mean(noise_cells)
+            threshold = threshold_scale * noise_level
+
+            if cut > threshold:
+                detections.append((r, d, cut))
+
+    return detections
+
+
+def detections_to_measurements(detections, range_res, doppler_res):
+    measurements = []
+
+    for r_idx, d_idx, power in detections:
+        distance = r_idx * range_res
+        velocity = d_idx * doppler_res
+
+        measurements.append(
+            {"distance": distance, "velocity": velocity, "power": power}
+        )
+
+    return measurements
+
+
+def select_lead_vehicle(measurements):
+    if not measurements:
+        return None
+
+    # Closest object (simplest assumption)
+    lead = min(measurements, key=lambda x: x["distance"])
+    return lead
+
+
+class KalmanFilterCV:
+    def __init__(self, dt, process_var=1.0, meas_var=1.0):
+        self.dt = dt
+
+        # State: [distance, velocity]
+        self.x = np.zeros((2, 1))
+
+        # State transition
+        self.F = np.array([[1, dt], [0, 1]])
+
+        # Measurement matrix
+        self.H = np.eye(2)
+
+        # Covariances
+        self.P = np.eye(2) * 10
+        self.Q = np.eye(2) * process_var
+        self.R = np.eye(2) * meas_var
+
+    def predict(self):
+        self.x = self.F @ self.x
+        self.P = self.F @ self.P @ self.F.T + self.Q
+
+    def update(self, z):
+        z = np.array(z).reshape(2, 1)
+
+        y = z - self.H @ self.x
+        S = self.H @ self.P @ self.H.T + self.R
+        K = self.P @ self.H.T @ np.linalg.inv(S)
+
+        self.x = self.x + K @ y
+        self.P = (np.eye(2) - K @ self.H) @ self.P
+
+    def get_state(self):
+        return self.x.flatten()
+
+
 ## Taken from https://github.com/PawanGu/radar-camera-fusion-cfar/blob/main/notebooks/radar_signal_chain_cfar.py
 def ca_cfar_2d(power_map, guard=1, train=4, pfa=1e-3):
     """
@@ -141,7 +236,10 @@ class CarPublisher(Node):
         )
 
         # self.model = PPO.load("./logs/01-02:11-16:48.89/best_model/best_model.zip")
-        self.model = PPO.load("./logs/01-09:15-11:21.25/best_model/best_model.zip")
+        self.model = PPO.load(
+            "./logs/01-09:15-11:21.25/best_model/best_model.zip"
+        )  # End to End
+        # self.model = PPO.load( "./logs/02-02:18-24:45.37/best_model/best_model.zip")  # direct input
         # self.model = PPO.load("./logs/02-17:14-05:37.57/best_model/best_model.zip")
 
         # self.model = PPO.load("./logs/02-26:16-57:07.77/best_model/best_model.zip")
@@ -149,6 +247,8 @@ class CarPublisher(Node):
         self.sim_timer = self.create_timer(
             1 / self.env.unwrapped.config["policy_frequency"], self.timer_callback
         )
+
+        self.kf = KalmanFilterCV(dt=0.1)
 
     def radar_callback(self, msg):
         self.radar_list.append(msg)
@@ -181,6 +281,10 @@ class CarPublisher(Node):
         # )
 
         doppler_fft = self.radar_pipeline.run(radar_cube_mti)
+
+        ################
+        ## End to end
+        ###############
         obs = 20 * np.log10(np.abs(np.average(doppler_fft, 2)) + 1e-12)
         obs = obs[:-1, :]
 
@@ -196,9 +300,49 @@ class CarPublisher(Node):
         # self.draw.draw(obs[0, :, :])
         # self.draw_sim.draw(self.obs[0, :, :])
 
+        ################
+        ## ChatGPT suggestion CFAR plus Kalmann
+        ###############
+        # detections = cfar_2d(
+        #     np.average(doppler_fft, 2), guard_cells=4, training_cells=3
+        # )
+        #
+        # # 2. Convert to physical measurements
+        # c = 3e8  # Speed of light (m/s)
+        # B = 5.36e9  # Bandwidth
+        # fc = 60.75e9  # center frequency
+        # T_chirp = 0.00123371  # chirp time
+        # N_c = 32  # number of chirps
+        #
+        # lambda_radar = c / fc
+        #
+        # range_res = (
+        #     c / (2 * B) / 2
+        # )  # division by two is necessary to have the same position as in the original RD map
+        # doppler_res = lambda_radar / (2 * N_c * T_chirp) / 2
+        # measurements = detections_to_measurements(detections, range_res, doppler_res)
+        # print(measurements)
+        #
+        # # 3. Select lead vehicle
+        # lead = select_lead_vehicle(measurements)
+        #
+        # # 4. Kalman filter
+        # self.kf.predict()
+        #
+        # if lead is not None:
+        #     z = [lead["distance"], lead["velocity"]]
+        #     # print(z)
+        #     self.kf.update(z)
+        #
+        # kf_state = self.kf.get_state()
+        # self.real_obs = np.array([kf_state[1], kf_state[0]])
+
+        ################
+        ## custom implemenatation CFAR plus Kalmann
+        ###############
         # detections = ca_cfar_2d(np.average(doppler_fft, 2), guard=4, train=3, pfa=1e-3)
-        # # detections = ca_cfar_2d(self.obs, guard=4, train=3, pfa=1e-3)
         # detections = detections.astype(np.uint8) * 255
+        # # self.draw.draw(detections)
         #
         # contours, hierarchy = cv.findContours(
         #     detections,
@@ -213,25 +357,27 @@ class CarPublisher(Node):
         #     det_speed = (x - w / 2) / (w / 2)
         #     det_dist = y * (self.max_distance / 2) / h
         #     # det_dist = y * 0.9 / h
-        #     print(f"Center {(x-w/2)/(w/2)},{y*0.9/h}")
+        #     # print(f"Center {(x-w/2)/(w/2)},{y*0.9/h}")
         #     # center = (int(x), int(y))
         #     # radius = int(radius)
         #     # detections = cv.cvtColor(detections, cv.COLOR_GRAY2RGB)
         #     # cv.circle(detections, center, radius, (0, 255, 0), 2)
-        # # print()
+        #     # print()
         #
-        # self.real_obs = np.array([det_speed, det_dist])
+        # self.kf.predict()
+        # z = [det_dist, det_speed]
+        # self.kf.update(z)
+        # kf_state = self.kf.get_state()
         #
-        # # detections = cv.resize(detections, (1900, 1900))
-        # # cv.imshow("CFAR", detections)
-        # # cv.waitKey(1)
-        #
+        # # self.real_obs = np.array([kf_state[1], kf_state[0]])
+        # self.real_obs = self.env.unwrapped.observation_type.normalize_obs(kf_state)
+
         if self.use_real_radar and self.real_obs is not None:
             action, _ = self.model.predict(self.real_obs)
         else:
             action, _ = self.model.predict(self.obs)
 
-        # self.obs, _, done, _, _ = self.env.step(action)
+        # self.obs, _, _, _, _ = self.env.step(action)
         self.env.unwrapped._simulate(action)
 
         self.env.render()
