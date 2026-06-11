@@ -707,6 +707,7 @@ class RandomVehicle(ControlledVehicle):
         target_speed: float = None,
         route: Route = None,
         speed_file=None,
+        speed_file_start_step=0,
     ):
         self.timer = 0
 
@@ -732,7 +733,7 @@ class RandomVehicle(ControlledVehicle):
         self.playback_speeds = None
         if speed_file:
             self.playback_speeds = np.load(speed_file)
-            self.playback_counter = 0
+            self.playback_counter = speed_file_start_step
 
     def act(self, action: Union[dict, str] = None):
         """
@@ -798,3 +799,4 @@ class RandomVehicle(ControlledVehicle):
         else:
             self.speed = self.playback_speeds[self.playback_counter]
             self.playback_counter += 1
+            print(self.playback_counter)

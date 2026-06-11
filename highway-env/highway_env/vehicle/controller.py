@@ -455,6 +455,13 @@ class SteeringMDPVehicle(ControlledVehicle):
             road, position, heading, speed, target_lane_index, target_speed, route
         )
 
+        # self.TAU_DS = 0.2  # [s]
+        # # self.PURSUIT_TAU = 0.5 * self.TAU_DS  # [s]
+        # self.PURSUIT_TAU = 2.0 * self.TAU_DS  # [s]
+        # self.KP_HEADING = 1 / self.TAU_DS
+        # self.KP_LATERAL = 1 / 3 * self.KP_HEADING  # [1/s]
+        # self.MAX_STEERING_ANGLE = np.pi / 3
+
         self.last_speed = speed
 
     def act(self, speed=None) -> None:
