@@ -753,7 +753,8 @@ class RadarPipeline:
 
         self.doppler_fft_plan()
 
-        return np.abs(self.doppler_out[:, self.doppler_index, :])
+        # return np.abs(self.doppler_out[:, self.doppler_index, :])
+        return self.doppler_out[:, self.doppler_index, :]
 
 
 # class RadarPipeline:
@@ -1000,7 +1001,7 @@ class RadarObservation(ObservationType):
             self.max_distance = self.radar_simulator.get_max_range()
             max_range = self.radar_simulator.get_max_range()
             max_doppler = self.radar_simulator.get_max_velocity()
-            self.draw = Draw(max_doppler, max_range)
+            # self.draw = Draw(max_doppler, max_range)
 
             self.kf = KalmanFilterCV(dt=0.1)
 
@@ -1142,7 +1143,8 @@ class RadarObservation(ObservationType):
                     kf_state = self.kf.get_state()
 
                     # obs = np.array([det_speed, det_dist])
-                    obs = np.array([kf_state[1], kf_state[0]])
+                    # obs = np.array([kf_state[1], kf_state[0]])
+                    obs = np.array([kf_state[0], kf_state[1]])
 
                     # print(f"CFAR {obs}")
                 else:
