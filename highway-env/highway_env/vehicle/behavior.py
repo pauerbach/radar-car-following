@@ -706,6 +706,7 @@ class RandomVehicle(ControlledVehicle):
         target_lane_index: int = None,
         target_speed: float = None,
         route: Route = None,
+        speed_file=None,
     ):
         self.timer = 0
 
@@ -715,11 +716,23 @@ class RandomVehicle(ControlledVehicle):
         self.sigma = 0.15  # Volatility
         self.X0 = speed  # Initial value
 
+        # self.TAU_DS = 0.2  # [s]
+        # # self.PURSUIT_TAU = 0.5 * self.TAU_DS  # [s]
+        # self.PURSUIT_TAU = 2.0 * self.TAU_DS  # [s]
+        # self.KP_HEADING = 1 / self.TAU_DS
+        # self.KP_LATERAL = 1 / 3 * self.KP_HEADING  # [1/s]
+        # self.MAX_STEERING_ANGLE = np.pi / 3
+
         super().__init__(
             road, position, heading, speed, target_lane_index, target_speed, route
         )
 
         self.last_speed = self.X0
+
+        self.playback_speeds = None
+        if speed_file:
+            self.playback_speeds = np.load(speed_file)
+            self.playback_counter = 0
 
     def act(self, action: Union[dict, str] = None):
         """
@@ -761,6 +774,7 @@ class RandomVehicle(ControlledVehicle):
 
         self.speed = max(self.speed, 0.2)
         # self.speed = min(self.speed, 0.7)
+        # self.speed = min(self.speed, 0.6)
         self.last_speed = self.speed
 
     def acceleration(self):
@@ -779,4 +793,8 @@ class RandomVehicle(ControlledVehicle):
         self.timer += dt
         super().step(dt)
 
-        self.randomize_speed(dt)
+        if self.playback_speeds is None:
+            self.randomize_speed(dt)
+        else:
+            self.speed = self.playback_speeds[self.playback_counter]
+            self.playback_counter += 1
