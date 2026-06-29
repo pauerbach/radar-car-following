@@ -64,6 +64,42 @@ def ca_cfar_2d(power_map, guard=1, train=4, pfa=1e-3):
     return det
 
 
+class KalmanFilterCV:
+    def __init__(self, dt, process_var=1.0, meas_var=1.0):
+        self.dt = dt
+
+        # State: [distance, velocity]
+        self.x = np.zeros((2, 1))
+
+        # State transition
+        self.F = np.array([[1, dt], [0, 1]])
+
+        # Measurement matrix
+        self.H = np.eye(2)
+
+        # Covariances
+        self.P = np.eye(2) * 10
+        self.Q = np.eye(2) * process_var
+        self.R = np.eye(2) * meas_var
+
+    def predict(self):
+        self.x = self.F @ self.x
+        self.P = self.F @ self.P @ self.F.T + self.Q
+
+    def update(self, z):
+        z = np.array(z).reshape(2, 1)
+
+        y = z - self.H @ self.x
+        S = self.H @ self.P @ self.H.T + self.R
+        K = self.P @ self.H.T @ np.linalg.inv(S)
+
+        self.x = self.x + K @ y
+        self.P = (np.eye(2) - K @ self.H) @ self.P
+
+    def get_state(self):
+        return self.x.flatten()
+
+
 class Draw:
     # Represents drawing for example
     #
@@ -717,7 +753,8 @@ class RadarPipeline:
 
         self.doppler_fft_plan()
 
-        return np.abs(self.doppler_out[:, self.doppler_index, :])
+        # return np.abs(self.doppler_out[:, self.doppler_index, :])
+        return self.doppler_out[:, self.doppler_index, :]
 
 
 # class RadarPipeline:
@@ -962,6 +999,11 @@ class RadarObservation(ObservationType):
             )
 
             self.max_distance = self.radar_simulator.get_max_range()
+            max_range = self.radar_simulator.get_max_range()
+            max_doppler = self.radar_simulator.get_max_velocity()
+            # self.draw = Draw(max_doppler, max_range)
+
+            self.kf = KalmanFilterCV(dt=0.1)
 
     def space(self) -> spaces.Space:
         if self.dist_only or self.use_cfar:
@@ -1070,8 +1112,20 @@ class RadarObservation(ObservationType):
             obs = np.average(doppler_fft, 2)
 
             if self.use_cfar:
+                draw_obs = 20 * np.log10(np.abs(obs) + 1e-12)
+                draw_obs = draw_obs[:-1, :]
+                # draw_obs = self.normalize_obs(draw_obs)
+                minmin = np.min(draw_obs)
+                maxmax = np.max(draw_obs)
+
+                draw_obs = (draw_obs - minmin) * 255 / (maxmax - minmin)
+
+                # draw_obs = draw_obs[np.newaxis, ...]
+
+                # self.draw.draw(draw_obs)
                 detections = ca_cfar_2d(obs, guard=4, train=3, pfa=1e-3)
                 detections = detections.astype(np.uint8) * 255
+                # self.draw.draw(detections)
                 contours, _ = cv2.findContours(
                     detections,
                     cv2.RETR_LIST | cv2.RETR_EXTERNAL,
@@ -1083,7 +1137,15 @@ class RadarObservation(ObservationType):
                     w, h = detections.shape
                     det_speed = (x - w / 2) / (w / 2)
                     det_dist = y * (self.max_distance / 2) / h
-                    obs = np.array([det_speed, det_dist])
+                    self.kf.predict()
+                    z = [det_dist, det_speed]
+                    self.kf.update(z)
+                    kf_state = self.kf.get_state()
+
+                    # obs = np.array([det_speed, det_dist])
+                    # obs = np.array([kf_state[1], kf_state[0]])
+                    obs = np.array([kf_state[0], kf_state[1]])
+
                     # print(f"CFAR {obs}")
                 else:
                     # print("No contours found")

@@ -61,6 +61,8 @@ class SingleAgentMergeEnv(AbstractEnv):
                 "simulation_frequency": 10,  # [Hz]
                 "scaling": 385,
                 "centering_position": [0.9, -0.55],
+                # "centering_position": [1.0, -0.55],
+                # "centering_position": [1.1, -0.55],
                 # "termination_headway": 4.5,  # [m]
                 "termination_headway": 1.8,  # [m]
                 "speed_reward_weight": 2.0,
@@ -95,6 +97,7 @@ class SingleAgentMergeEnv(AbstractEnv):
             "headway": h,
             "crashed": vehicle.crashed,
             "leader_speed": leader.speed,
+            "ego_speed": vehicle.speed,
         }
 
     def _reward(self, action: int) -> float:
@@ -263,9 +266,13 @@ class SingleAgentMergeEnv(AbstractEnv):
         # scenario, _ = CommonRoadFileReader("./tracks/track.xml").open()
         # scenario, _ = CommonRoadFileReader("./tracks/track2.xml").open()
         # scenario, _ = CommonRoadFileReader("./tracks/rectangle_track.xml").open()
-        scenario, _ = CommonRoadFileReader("./tracks/circular_track.xml").open()
         # scenario, _ = CommonRoadFileReader("./tracks/track3.xml").open()
         # scenario, _ = CommonRoadFileReader("./tracks/track5.xml").open()
+
+        scenario, _ = CommonRoadFileReader("./tracks/circular_track.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/bananasmooth_shorter.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/bananaangle_veryshort.xml").open()
+        # scenario, _ = CommonRoadFileReader("./tracks/rectanglesmall.xml").open()
 
         net = scenario.lanelet_network
         net_common_road = RoadNetworkCommonRoad(net, is_ring=True)
@@ -311,6 +318,8 @@ class SingleAgentMergeEnv(AbstractEnv):
             lane.position(start_pos_hdv, 0),
             lane.heading_at(start_pos_hdv),
             0.5,
+            speed_file=self.config.get("leader_speed_file"),
+            speed_file_start_step=self.total_steps,
         )
 
         if self.config["use_ros"]:

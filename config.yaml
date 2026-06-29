@@ -13,6 +13,7 @@ env:
       normalize: True
       dist_only: False
       use_radar_simulation: True
+      use_cfar: False
       fc: 60.75e9
       B: 5.36e9
       T_chirp: 0.00123371
@@ -44,6 +45,7 @@ env:
 train:
     total_timesteps: 10e6
     features_dim: 128
+    # policy: "MlpPolicy"
     policy: "CnnPolicy"
     learning_rate: 5e-5
     gamma: 0.99

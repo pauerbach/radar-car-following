@@ -64,6 +64,7 @@ class AbstractEnv(gym.Env):
         # Running
         self.time = 0  # Simulation time
         self.steps = 0  # Actions performed
+        self.total_steps = 0
         self.done = False
         self.T = int(self.config["duration"] * self.config["policy_frequency"])
 
@@ -200,6 +201,7 @@ class AbstractEnv(gym.Env):
             )
 
         self.steps += 1
+        self.total_steps += 1
 
         self._simulate(action)
 

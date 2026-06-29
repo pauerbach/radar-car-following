@@ -61,5 +61,5 @@ for i in t:
 print(f"Crashes: {crashes}")
 
 # np.save("results/leader_speeds.npy", np.array(leader_speeds))
-np.save("results/ttc_idm3.npy", np.array(ttcs))
-np.save("results/headway_idm3.npy", np.array(headways))
+np.save("results/ttc_idm_with_action_noise_085_banana.npy", np.array(ttcs))
+np.save("results/headway_idm_with_action_noise_085_banana.npy", np.array(headways))

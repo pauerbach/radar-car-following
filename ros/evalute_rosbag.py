@@ -9,6 +9,7 @@ from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
 from geometry_msgs.msg import Pose2D
 from radar_msgs.msg import RadarFrame
+from rclpy.qos import qos_profile_sensor_data
 
 
 sys.path.append("./highway-env/")
@@ -101,12 +102,13 @@ class CarPublisher(Node):
             10,
         )
         # subscription for radar data
-        # self.create_subscription(
-        #     RadarFrame,
-        #     "radar_data",
-        #     self.radar_callback,
-        #     10,
-        # )
+        self.create_subscription(
+            RadarFrame,
+            "radar_data",
+            self.radar_callback,
+            # 10,
+            qos_profile=qos_profile_sensor_data,
+        )
 
         # self.model = PPO.load("./logs/01-02:11-16:48.89/best_model/best_model.zip")
         self.model = PPO.load("./logs/01-09:15-11:21.25/best_model/best_model.zip")
@@ -220,8 +222,8 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        np.save("ttc_radar_sim.npy", np.array(node.ttcs))
-        np.save("headway_radar_sim.npy", np.array(node.headways))
+        np.save("ttc_end-to-end-bananaangle.npy", np.array(node.ttcs))
+        np.save("headway_end-to-end-bananaangle.npy", np.array(node.headways))
 
         # np.save("commanded_speeds_ego.npy", np.array(node.commanded_speeds[0]))
         # np.save("commanded_speeds_leader.npy", np.array(node.commanded_speeds[1]))
