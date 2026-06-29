@@ -1,15 +1,16 @@
 # Sim-to-Real Transfer of an End-to-End Reinforcement Learning Policy for Radar-Based Car-Following
 
 This repository contains the source code accompanying the paper  
-**“Sim-to-Real Transfer of an End-to-End Reinforcement Learning Policy for Radar-Based Car-Following”**,  
-submitted to the IEEE International Conference on Intelligent Transportation Systems (ITSC) 2026.
+**"End-to-End Reinforcement Learning for Radar-Based Car-Following"**,  
+submitted to the 38th IEEE Intelligent Vehicles Symposium (IEEE IV) 2027.
 
 ## About the work
 
-This paper investigates the sim-to-real transfer of an end-to-end reinforcement learning policy for radar-based car-following. The proposed approach learns longitudinal control directly from range–Doppler representations produced by an automotive radar, avoiding hand-crafted perception features or explicit target tracking. A physics-inspired radar simulation is developed to generate realistic range–Doppler maps under varying relative motion between a leading and a following vehicle. Using this simulated sensor model, a Proximal Policy Optimization (PPO) agent is trained to regulate vehicle speed in order to maintain a desired time-to-collision with a stochastic lead vehicle.
-To evaluate real-world applicability, the trained policy is deployed without retraining on a model-scale vehicle equipped with an Infineon BGT60TR13C radar. The sim-to-real transition is facilitated by aligning the simulated and real radar processing pipelines and by incorporating representative noise and resolution characteristics during training. Experimental results demonstrate that the policy generalizes to real radar measurements and achieves stable car-following behavior under varying lead vehicle speeds.
+This paper investigates end-to-end reinforcement learning for radar-based car-following. The proposed approach learns longitudinal control directly from Range-Doppler representations produced by an FMCW radar, avoiding hand-crafted perception features or explicit target tracking. A physics-inspired radar simulation is developed to generate realistic Range-Doppler maps under varying relative motion between a leading and a following vehicle. Using this simulated sensor model, a Proximal Policy Optimization (PPO) agent is trained to regulate vehicle speed in order to maintain a desired time-to-collision with a stochastic lead vehicle.
+The learned policy is evaluated on a model-scale vehicle platform equipped with an Infineon BGT60TR13C radar.
+Results demonstrate that the policy achieves stable car-following behavior across varying lead vehicle speeds and operating conditions. These findings indicate that learning directly from Range-Doppler inputs can capture relevant control cues for longitudinal vehicle control without explicit intermediate representations.
 
-[Videos of agent evaluation](https://www.youtube.com/playlist?list=PL3U0Q5QF11vZQqoIPdr3Y9lDzQej6ik_s)
+[Videos of real world agent evaluation](https://www.youtube.com/playlist?list=PL3U0Q5QF11vZQqoIPdr3Y9lDzQej6ik_s)
 
 ---
 
