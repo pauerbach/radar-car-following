@@ -1,4 +1,4 @@
-# Sim-to-Real Transfer of an End-to-End Reinforcement Learning Policy for Radar-Based Car-Following
+# End-to-End Reinforcement Learning for Radar-Based Car-Following
 
 This repository contains the source code accompanying the paper  
 **"End-to-End Reinforcement Learning for Radar-Based Car-Following"**,  
