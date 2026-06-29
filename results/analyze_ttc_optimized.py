@@ -45,6 +45,8 @@ datasets = {
         # "headway": "./headway_radar_no_action_noise.npy",
         "ttc": "./ttc_radar_new.npy",
         "headway": "./headway_radar_new.npy",
+        # "ttc": "./ttc_radar_min0_speed.npy",
+        # "headway": "./headway_radar_min0_speed.npy",
         # "ttc": "./ttc_radar_with_action_noise_banana.npy",
         # "headway": "./headway_radar_with_action_noise_banana.npy",
         # "ttc": "./ttc_radar_with_action_noise_banana_smooth.npy",
@@ -108,6 +110,7 @@ for name, paths in datasets.items():
     # 3. Filtering
     # Apply filtering for TTC statistics and plotting
     ttc_filtered = ttc[(ttc < 10) & (ttc > 0.3)]
+    # ttc_filtered = ttc[(ttc < 10) & (ttc > 0.0)]
 
     print(f"Mean TTC: {np.mean(ttc_filtered):.2f}")
     print(f"Min TTC: {np.min(ttc_filtered):.2f}")
